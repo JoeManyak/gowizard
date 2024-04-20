@@ -1,0 +1,5 @@
+project_name: wiiiizard
+layers:
+  controller: http
+  service:
+  repository: postgres
