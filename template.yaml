@@ -1,5 +1,14 @@
-project_name: wiiiizard
+project_name: wiz
 layers:
   controller: http
   service:
   repository: postgres
+models:
+  - name: User
+    fields:
+      - name: Username
+        type: string
+    methods:
+      - "Create"
+      - "Update"
+      - "Delete"

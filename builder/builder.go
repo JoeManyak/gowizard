@@ -10,19 +10,27 @@ import (
 type Builder struct {
 	ProjectName string            `yaml:"project_name"`
 	Layers      map[string]string `yaml:"layers"`
-	Path        string            `yaml:"-"`
+	Unsafe      bool              `yaml:"unsafe"`
+	Path        string            `yaml:"path"`
+
+	Models []Model `yaml:"models"`
+
+	LayerController *LayerController `yaml:"-"`
 }
 
 func (b *Builder) setDefaultsIfEmpty() string {
+	if b.ProjectName == "" {
+		b.ProjectName = "gowizard"
+	}
+
 	if b.Path == "" {
-		b.Path = "./gowizard/"
+		b.Path = "gowizard"
+	}
+	if !b.Unsafe {
+		b.Path = filepath.Join("magic", b.Path)
 	}
 	if b.Path[len(b.Path)-1] != '/' {
 		b.Path = b.Path + "/"
-	}
-
-	if b.ProjectName == "" {
-		b.ProjectName = "gowizard"
 	}
 
 	if b.Layers == nil {
@@ -39,7 +47,7 @@ func (b *Builder) setDefaultsIfEmpty() string {
 func (b *Builder) CodeGenerate() error {
 	b.setDefaultsIfEmpty()
 
-	err := b.generateDirectories()
+	err := b.initStructure()
 	if err != nil {
 		return fmt.Errorf("unable to generate directories: %w", err)
 	}
@@ -47,6 +55,11 @@ func (b *Builder) CodeGenerate() error {
 	err = b.mainGenerate()
 	if err != nil {
 		return fmt.Errorf("unable to generate main.go: %w", err)
+	}
+
+	err = b.LayerController.Generate()
+	if err != nil {
+		return fmt.Errorf("unable to generate layers: %w", err)
 	}
 
 	return nil
@@ -63,15 +76,38 @@ func main() {
 }
 `
 
-func (b *Builder) generateDirectories() error {
-	if !checkIfExist(b.Path) {
-		err := os.Mkdir(b.Path, os.ModePerm)
+func (b *Builder) initStructure() error {
+	if _, err := createIfNoExist(b.Path); err != nil {
+		return fmt.Errorf("unable to create main directory: %w", err)
+	}
+
+	b.LayerController = NewLayerController(b, b.Layers, nil)
+
+	for i, layer := range b.LayerController.Layers {
+		path, err := createIfNoExist(filepath.Join(b.Path, layer.Name))
 		if err != nil {
-			return fmt.Errorf("unable to create main directory: %w", err)
+			return fmt.Errorf("unable to create %s directory: %w", layer.Name, err)
 		}
+
+		b.LayerController.Layers[i].Path = path
 	}
 
 	return nil
+}
+
+func createIfNoExist(fp string) (string, error) {
+	if fp[len(fp)-1] != '/' {
+		fp = fp + "/"
+	}
+
+	if !checkIfExist(fp) {
+		err := os.MkdirAll(fp, os.ModePerm)
+		if err != nil {
+			return "", fmt.Errorf("unable to create directory %s: %w", fp, err)
+		}
+	}
+
+	return fp, nil
 }
 
 func checkIfExist(fp string) bool {
