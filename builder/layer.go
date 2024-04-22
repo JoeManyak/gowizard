@@ -15,13 +15,13 @@ const (
 type LayerController struct {
 	Layers  []*Layer
 	Builder *Builder
-	Models  map[string][]Model
+	Models  []*Model
 }
 
 func NewLayerController(
 	b *Builder,
 	layers map[string]string,
-	models map[string][]Model,
+	models []*Model,
 ) *LayerController {
 	lc := LayerController{
 		Builder: b,
@@ -31,8 +31,9 @@ func NewLayerController(
 
 	for name, layerType := range layers {
 		lc.Layers = append(lc.Layers, &Layer{
-			Name: name,
-			Type: layerType,
+			Name:   name,
+			Type:   layerType,
+			Models: &models,
 		})
 	}
 
@@ -47,13 +48,13 @@ type Layer struct {
 	Name      string
 	Type      string
 	Path      string
-	Models    *[]Model
+	Models    *[]*Model
 	NextLayer *Layer
 }
 
 func (lc *LayerController) Generate() error {
 	for _, layer := range lc.Layers {
-		f, err := os.Create(layer.Name + ".go")
+		f, err := os.Create(layer.Path + layer.Name + ".go")
 		if err != nil {
 			return fmt.Errorf("unable to create general file %s: %w", layer.Name, err)
 		}

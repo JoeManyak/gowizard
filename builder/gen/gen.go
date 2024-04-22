@@ -36,12 +36,12 @@ func AddInterface(file *os.File, name string, methods []InterfaceMethod) error {
 
 		switch len(methods[i].Returns) {
 		case 0:
-			if _, err := file.WriteString(" {\n"); err != nil {
+			if _, err := file.WriteString("\n"); err != nil {
 				return err
 			}
 			break
 		case 1:
-			if _, err := file.WriteString(" " + methods[i].Returns[0] + " {\n"); err != nil {
+			if _, err := file.WriteString(" " + methods[i].Returns[0] + "\n"); err != nil {
 				return err
 			}
 			break
@@ -59,11 +59,14 @@ func AddInterface(file *os.File, name string, methods []InterfaceMethod) error {
 					return err
 				}
 			}
-		}
 
-		if _, err := file.WriteString("\n"); err != nil {
-			return err
+			if _, err := file.WriteString(")\n"); err != nil {
+				return err
+			}
 		}
+	}
+	if _, err := file.WriteString("}\n"); err != nil {
+		return err
 	}
 
 	return nil

@@ -13,7 +13,7 @@ type Builder struct {
 	Unsafe      bool              `yaml:"unsafe"`
 	Path        string            `yaml:"path"`
 
-	Models []Model `yaml:"models"`
+	Models []*Model `yaml:"models"`
 
 	LayerController *LayerController `yaml:"-"`
 }
@@ -81,7 +81,7 @@ func (b *Builder) initStructure() error {
 		return fmt.Errorf("unable to create main directory: %w", err)
 	}
 
-	b.LayerController = NewLayerController(b, b.Layers, nil)
+	b.LayerController = NewLayerController(b, b.Layers, b.Models)
 
 	for i, layer := range b.LayerController.Layers {
 		path, err := createIfNoExist(filepath.Join(b.Path, layer.Name))
