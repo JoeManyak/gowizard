@@ -2,6 +2,7 @@ package builder
 
 import (
 	"fmt"
+	"gowizard/builder/model"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,7 +14,7 @@ type Builder struct {
 	Unsafe      bool              `yaml:"unsafe"`
 	Path        string            `yaml:"path"`
 
-	Models []*Model `yaml:"models"`
+	Models []*model.Model `yaml:"models"`
 
 	LayerController *LayerController `yaml:"-"`
 }
@@ -62,6 +63,11 @@ func (b *Builder) CodeGenerate() error {
 		return fmt.Errorf("unable to generate layers: %w", err)
 	}
 
+	err = b.gofmt()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -75,6 +81,10 @@ func main() {
 	fmt.Println("Hello, World!")
 }
 `
+
+const (
+	DefaultModelsFolder = "models"
+)
 
 func (b *Builder) initStructure() error {
 	if _, err := createIfNoExist(b.Path); err != nil {
@@ -90,6 +100,11 @@ func (b *Builder) initStructure() error {
 		}
 
 		b.LayerController.Layers[i].Path = path
+	}
+
+	_, err := createIfNoExist(filepath.Join(b.Path, DefaultModelsFolder))
+	if err != nil {
+		return fmt.Errorf("unable to create models directory: %w", err)
 	}
 
 	return nil
@@ -144,6 +159,17 @@ func (b *Builder) mainGenerate() error {
 	err = cmd.Run()
 	if err != nil {
 		return fmt.Errorf("unable to run go mod init: %w", err)
+	}
+
+	return nil
+}
+
+func (b *Builder) gofmt() error {
+	cmd := exec.Command("go", "fmt", "./...")
+	cmd.Dir = b.Path
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("unable to run gofmt: %w", err)
 	}
 
 	return nil

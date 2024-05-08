@@ -8,7 +8,12 @@ models:
     fields:
       - name: Username
         type: string
+      - name: Age
+        type: uint8
+      - name: LongDescriptionField
+        type: string
     methods:
       - "Create"
       - "Update"
       - "Delete"
+      - "CastSpell"
