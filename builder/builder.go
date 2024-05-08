@@ -9,14 +9,19 @@ import (
 )
 
 type Builder struct {
-	ProjectName string            `yaml:"project_name"`
-	Layers      map[string]string `yaml:"layers"`
-	Unsafe      bool              `yaml:"unsafe"`
-	Path        string            `yaml:"path"`
+	ProjectName string     `yaml:"project_name"`
+	Layers      []LayerDTO `yaml:"layers"`
+	Unsafe      bool       `yaml:"unsafe"`
+	Path        string     `yaml:"path"`
 
 	Models []*model.Model `yaml:"models"`
 
 	LayerController *LayerController `yaml:"-"`
+}
+
+type LayerDTO struct {
+	Layer string `yaml:"layer"`
+	Tag   string `yaml:"tag"`
 }
 
 func (b *Builder) setDefaultsIfEmpty() string {
@@ -35,12 +40,19 @@ func (b *Builder) setDefaultsIfEmpty() string {
 	}
 
 	if b.Layers == nil {
-		b.Layers = map[string]string{
-			"handler":    "http",
-			"service":    "",
-			"repository": "postgres",
+		b.Layers = []LayerDTO{
+			{
+				Layer: "controller",
+				Tag:   "http",
+			},
+			{
+				Layer: "service",
+			},
+			{
+				Layer: "repository",
+				Tag:   "postgres",
+			},
 		}
-
 	}
 	return b.ProjectName
 }

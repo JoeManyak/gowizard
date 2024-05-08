@@ -1,5 +1,10 @@
 package model
 
+import (
+	"gowizard/builder/model/layers/custom"
+	"gowizard/builder/storage"
+)
+
 type InterfaceMethodInstance struct {
 	Name string
 	// Args should be a pairs of type and name
@@ -16,9 +21,9 @@ type MethodInstance struct {
 	Args    []string
 	Returns []string
 
-	LayerType string
-	Type      MethodType
-	Model     *Model
+	Layer *storage.Layer
+	Type  MethodType
+	Model *Model
 }
 
 func (mi *MethodInstance) UpdateByMethodType() {
@@ -37,19 +42,37 @@ func (mi *MethodInstance) UpdateByMethodType() {
 	}
 }
 
+const (
+	httpLayerType = "http"
+	repoLayerType = "postgres"
+)
+
 func (mi *MethodInstance) GetMethodBody() string {
+	selector := SelectMethods(mi.Model, mi.Layer)
+
 	switch mi.Type {
 	case MethodCreate:
-		return "return nil\n"
+		return selector.Create()
 	default:
-		return "\n"
+		return "panic(\"not implemented\")\n"
 	}
 }
 
-func (mi *MethodInstance) getCreateMethodBody() string {
-	return "//todo implement me\n"
+func SelectMethods(mdl *Model, layer *storage.Layer) GenerateMethodBody {
+	switch layer.Type {
+	/*case httpLayerType:
+		return &HttpMethodBody{}
+	case repoLayerType:
+		return &RepoMethodBody{}*/
+	default:
+		return custom.NewCustom(layer, mdl)
+	}
 }
 
-func (mi *MethodInstance) getDefaultMethodBody() string {
-	return "panic(\"not implemented\")\n"
+type GenerateMethodBody interface {
+	Create() string
+	//Read() string
+	//Update() string
+	//Delete() string
+	//Custom() string
 }

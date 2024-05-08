@@ -4,36 +4,33 @@ import (
 	"fmt"
 	"gowizard/builder/gen"
 	"gowizard/builder/model"
+	"gowizard/builder/storage"
+	"gowizard/util"
 	"path/filepath"
-)
-
-const (
-	httpLayerType = "http"
-
-	repoLayerType = "postgres"
+	"strings"
 )
 
 type LayerController struct {
-	Layers  []*Layer
+	Layers  []*storage.Layer
 	Builder *Builder
 	Models  []*model.Model
 }
 
 func NewLayerController(
 	b *Builder,
-	layers map[string]string,
+	layers []LayerDTO,
 	models []*model.Model,
 ) *LayerController {
 	lc := LayerController{
 		Builder: b,
 		Models:  models,
-		Layers:  make([]*Layer, 0, len(layers)),
+		Layers:  make([]*storage.Layer, 0, len(layers)),
 	}
 
-	for name, layerType := range layers {
-		lc.Layers = append(lc.Layers, &Layer{
-			Name:   name,
-			Type:   layerType,
+	for _, l := range layers {
+		lc.Layers = append(lc.Layers, &storage.Layer{
+			Name:   l.Layer,
+			Type:   l.Tag,
 			Models: &models,
 		})
 	}
@@ -43,14 +40,6 @@ func NewLayerController(
 	}
 
 	return &lc
-}
-
-type Layer struct {
-	Name      string
-	Type      string
-	Path      string
-	Models    *[]*model.Model
-	NextLayer *Layer
 }
 
 func (lc *LayerController) Generate() error {
@@ -77,7 +66,7 @@ func (lc *LayerController) Generate() error {
 	return nil
 }
 
-func (lc *LayerController) generateMainLayerFile(layer *Layer) error {
+func (lc *LayerController) generateMainLayerFile(layer *storage.Layer) error {
 	g, err := gen.NewGen(layer.Path + layer.Name + ".go")
 	if err != nil {
 		return fmt.Errorf("unable to create new generator: %w", err)
@@ -110,7 +99,7 @@ func (lc *LayerController) generateMainLayerFile(layer *Layer) error {
 	return nil
 }
 
-func (lc *LayerController) generateModelLayerFile(layer *Layer, mdl *model.Model) error {
+func (lc *LayerController) generateModelLayerFile(layer *storage.Layer, mdl *model.Model) error {
 	g, err := gen.NewGen(layer.Path + mdl.GetFilename())
 	if err != nil {
 		return fmt.Errorf("unable to create new generator: %w", err)
@@ -124,6 +113,16 @@ func (lc *LayerController) generateModelLayerFile(layer *Layer, mdl *model.Model
 
 	//todo WIP
 	privateMdl := mdl.GetLayer()
+	if layer.NextLayer != nil {
+		err = g.AddImport([]string{
+			util.MakeString(filepath.Join(lc.Builder.ProjectName, layer.NextLayer.Name)),
+		})
+
+		privateMdl.Fields = append(privateMdl.Fields, model.Field{
+			Name: util.MakePrivateName(layer.NextLayer.Name),
+			Type: model.FieldType(strings.ToLower(layer.NextLayer.Name) + "." + mdl.Name),
+		})
+	}
 
 	err = g.AddStruct(&privateMdl)
 	if err != nil {

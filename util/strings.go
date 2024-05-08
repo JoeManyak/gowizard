@@ -1,6 +1,9 @@
 package util
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 func PascalToSnakeCase(str string) string {
 	snakeStr := ""
@@ -23,4 +26,8 @@ func MakePrivateName(str string) string {
 func MakePublicName(str string) string {
 	runeStr := []rune(str)
 	return strings.ToUpper(string(runeStr[0])) + string(runeStr[1:])
+}
+
+func MakeString(str string) string {
+	return fmt.Sprintf("\"%s\"", str)
 }

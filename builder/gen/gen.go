@@ -5,6 +5,7 @@ import (
 	"gowizard/builder/model"
 	"gowizard/util"
 	"os"
+	"strings"
 )
 
 type Gen struct {
@@ -178,4 +179,26 @@ func (g *Gen) AddMethod(mdl *model.Model, method *model.MethodInstance) error {
 	}
 
 	return nil
+}
+
+func (g *Gen) AddImport(imports []string) error {
+	_, err := g.File.WriteString(genImports(imports))
+	return err
+}
+
+func genImports(imports []string) string {
+	switch len(imports) {
+	case 0:
+		return ""
+	case 1:
+		return fmt.Sprintf("import %s\n", imports[0])
+	default:
+		var sb strings.Builder
+		sb.WriteString("import (\n")
+		for _, v := range imports {
+			sb.WriteString(v + "\n")
+		}
+		sb.WriteString(")")
+		return sb.String()
+	}
 }

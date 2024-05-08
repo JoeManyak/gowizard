@@ -1,8 +1,10 @@
 project_name: wiz
 layers:
-  controller: http
-  service:
-  repository: postgres
+  - layer: controller
+    tag: http
+  - layer: service
+  - layer: repository
+    tag: postgres
 models:
   - name: User
     fields:
