@@ -4,31 +4,32 @@ import (
 	"fmt"
 	"gowizard/builder/gen"
 	"gowizard/builder/model"
-	"gowizard/builder/storage"
+	"gowizard/builder/model/system"
+	"gowizard/consts"
 	"gowizard/util"
 	"path/filepath"
 	"strings"
 )
 
 type LayerController struct {
-	Layers  []*storage.Layer
+	Layers  []*system.Layer
 	Builder *Builder
-	Models  []*model.Model
+	Models  []*system.Model
 }
 
 func NewLayerController(
 	b *Builder,
 	layers []LayerDTO,
-	models []*model.Model,
+	models []*system.Model,
 ) *LayerController {
 	lc := LayerController{
 		Builder: b,
 		Models:  models,
-		Layers:  make([]*storage.Layer, 0, len(layers)),
+		Layers:  make([]*system.Layer, 0, len(layers)),
 	}
 
 	for _, l := range layers {
-		lc.Layers = append(lc.Layers, &storage.Layer{
+		lc.Layers = append(lc.Layers, &system.Layer{
 			Name:   l.Layer,
 			Type:   l.Tag,
 			Models: &models,
@@ -66,7 +67,7 @@ func (lc *LayerController) Generate() error {
 	return nil
 }
 
-func (lc *LayerController) generateMainLayerFile(layer *storage.Layer) error {
+func (lc *LayerController) generateMainLayerFile(layer *system.Layer) error {
 	g, err := gen.NewGen(layer.Path + layer.Name + ".go")
 	if err != nil {
 		return fmt.Errorf("unable to create new generator: %w", err)
@@ -79,14 +80,19 @@ func (lc *LayerController) generateMainLayerFile(layer *storage.Layer) error {
 		return fmt.Errorf("unable to add package %s: %w", layer.Name, err)
 	}
 
+	err = g.AddImport([]string{util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultModelsFolder))})
+	if err != nil {
+		return fmt.Errorf("unable to add imports %s: %w", layer.Name, err)
+	}
+
 	// Generate layer general file
 	for j, mdl := range *layer.Models {
 		methods := make([]model.InterfaceMethodInstance, 0, len(mdl.Methods))
 		for _, method := range (*layer.Models)[j].Methods {
 			methods = append(methods, model.InterfaceMethodInstance{
 				Name:    method.String() + mdl.Name,
-				Args:    []string{"test string"},
-				Returns: nil,
+				Args:    []string{util.MakePrivateName(mdl.Name), "*" + consts.DefaultModelsFolder + "." + mdl.Name},
+				Returns: method.GetDefaultReturns(mdl),
 			})
 		}
 
@@ -99,7 +105,7 @@ func (lc *LayerController) generateMainLayerFile(layer *storage.Layer) error {
 	return nil
 }
 
-func (lc *LayerController) generateModelLayerFile(layer *storage.Layer, mdl *model.Model) error {
+func (lc *LayerController) generateModelLayerFile(layer *system.Layer, mdl *system.Model) error {
 	g, err := gen.NewGen(layer.Path + mdl.GetFilename())
 	if err != nil {
 		return fmt.Errorf("unable to create new generator: %w", err)
@@ -111,17 +117,24 @@ func (lc *LayerController) generateModelLayerFile(layer *storage.Layer, mdl *mod
 		return fmt.Errorf("unable to add package %s: %w", layer.Name, err)
 	}
 
-	//todo WIP
+	importsToAdd := []string{util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultModelsFolder))}
 	privateMdl := mdl.GetLayer()
 	if layer.NextLayer != nil {
-		err = g.AddImport([]string{
-			util.MakeString(filepath.Join(lc.Builder.ProjectName, layer.NextLayer.Name)),
-		})
+		importsToAdd = append(importsToAdd, util.MakeString(filepath.Join(lc.Builder.ProjectName, layer.NextLayer.Name)))
 
-		privateMdl.Fields = append(privateMdl.Fields, model.Field{
+		privateMdl.Fields = append(privateMdl.Fields, system.Field{
 			Name: util.MakePrivateName(layer.NextLayer.Name),
-			Type: model.FieldType(strings.ToLower(layer.NextLayer.Name) + "." + mdl.Name),
+			Type: system.FieldType(strings.ToLower(layer.NextLayer.Name) + "." + mdl.Name),
 		})
+	}
+
+	if layer.Type == consts.HTTPLayerType {
+		importsToAdd = append(importsToAdd, util.MakeString(consts.GinURL))
+	}
+
+	err = g.AddImport(importsToAdd)
+	if err != nil {
+		return fmt.Errorf("unable to add imports %s: %w", mdl.Name, err)
 	}
 
 	err = g.AddStruct(&privateMdl)
@@ -131,10 +144,16 @@ func (lc *LayerController) generateModelLayerFile(layer *storage.Layer, mdl *mod
 
 	for _, iMdl := range mdl.Methods {
 		genMethod := model.MethodInstance{
+			Layer: layer,
+			Args:  iMdl.GetDefaultArgs(mdl, layer),
 			Type:  iMdl,
 			Model: mdl,
 		}
 		genMethod.UpdateByMethodType()
+
+		if layer.Type == consts.HTTPLayerType {
+			genMethod.Returns = []string{""}
+		}
 
 		err = g.AddMethod(&privateMdl, &genMethod)
 		if err != nil {
@@ -147,14 +166,14 @@ func (lc *LayerController) generateModelLayerFile(layer *storage.Layer, mdl *mod
 
 func (lc *LayerController) generateModelStorageFile() error {
 	for _, mdl := range lc.Models {
-		g, err := gen.NewGen(filepath.Join(lc.Builder.Path, DefaultModelsFolder, mdl.GetFilename()))
+		g, err := gen.NewGen(filepath.Join(lc.Builder.Path, consts.DefaultModelsFolder, mdl.GetFilename()))
 		if err != nil {
 			return fmt.Errorf("unable to create new generator: %w", err)
 		}
 
-		err = g.AddPackage(DefaultModelsFolder)
+		err = g.AddPackage(consts.DefaultModelsFolder)
 		if err != nil {
-			return fmt.Errorf("unable to add package %s: %w", DefaultModelsFolder, err)
+			return fmt.Errorf("unable to add package %s: %w", consts.DefaultModelsFolder, err)
 		}
 
 		err = g.AddStruct(mdl)

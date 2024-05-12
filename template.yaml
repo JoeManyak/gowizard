@@ -3,6 +3,8 @@ layers:
   - layer: controller
     tag: http
   - layer: service
+  - layer: justfortesting1
+  - layer: justfortesting2
   - layer: repository
     tag: postgres
 models:
@@ -16,6 +18,15 @@ models:
         type: string
     methods:
       - "Create"
+      - "Read"
       - "Update"
       - "Delete"
       - "CastSpell"
+  - name: Car
+    fields:
+      - name: Brand
+        type: string
+      - name: Model
+        type: string
+    methods:
+      - "Read"

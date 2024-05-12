@@ -1,8 +1,10 @@
 package model
 
 import (
-	"gowizard/builder/model/layers/custom"
-	"gowizard/builder/storage"
+	"fmt"
+	"gowizard/builder/model/gentags"
+	"gowizard/builder/model/system"
+	"gowizard/consts"
 )
 
 type InterfaceMethodInstance struct {
@@ -11,8 +13,8 @@ type InterfaceMethodInstance struct {
 	Args    []string
 	Returns []string `json:"returns"`
 
-	Type  MethodType
-	Model *Model
+	Type  system.MethodType
+	Model *system.Model
 }
 
 type MethodInstance struct {
@@ -21,58 +23,75 @@ type MethodInstance struct {
 	Args    []string
 	Returns []string
 
-	Layer *storage.Layer
-	Type  MethodType
-	Model *Model
+	Layer *system.Layer
+	Type  system.MethodType
+	Model *system.Model
 }
 
 func (mi *MethodInstance) UpdateByMethodType() {
 	// todo: should consider to change to GenerateNaming()
 	switch mi.Type.Lower() {
-	case MethodCreate:
+	case system.MethodCreate:
 		mi.Name = "Create" + mi.Model.Name
-	case MethodRead:
+	case system.MethodRead:
 		mi.Name = "Read" + mi.Model.Name
-	case MethodUpdate:
+	case system.MethodUpdate:
 		mi.Name = "Update" + mi.Model.Name
-	case MethodDelete:
+	case system.MethodDelete:
 		mi.Name = "Delete" + mi.Model.Name
 	default:
 		mi.Name = mi.Type.String() + mi.Model.Name
 	}
 }
 
-const (
-	httpLayerType = "http"
-	repoLayerType = "postgres"
-)
-
 func (mi *MethodInstance) GetMethodBody() string {
 	selector := SelectMethods(mi.Model, mi.Layer)
 
-	switch mi.Type {
-	case MethodCreate:
+	switch mi.Type.Lower() {
+	case system.MethodCreate:
 		return selector.Create()
+	case system.MethodRead:
+		return selector.Read()
+	case system.MethodUpdate:
+		return selector.Update()
+	case system.MethodDelete:
+		return selector.Delete()
 	default:
-		return "panic(\"not implemented\")\n"
+		return selector.Custom()
 	}
 }
 
-func SelectMethods(mdl *Model, layer *storage.Layer) GenerateMethodBody {
+func (mi *MethodInstance) GetReturns() []string {
+	if len(mi.Returns) != 0 {
+		return mi.Returns
+	}
+
+	return mi.Type.GetDefaultReturns(mi.Model)
+}
+
+func SelectMethods(mdl *system.Model, layer *system.Layer) GenerateMethodBody {
+	if layer == nil {
+		fmt.Println("Warn: no layer provided")
+		return gentags.NewCustom(layer, mdl)
+	}
+
 	switch layer.Type {
-	/*case httpLayerType:
-		return &HttpMethodBody{}
-	case repoLayerType:
-		return &RepoMethodBody{}*/
+	case consts.HTTPLayerType:
+		return gentags.NewHTTP(layer, mdl)
+	/*case repoLayerType:
+	return &RepoMethodBody{}*/
 	default:
-		return custom.NewCustom(layer, mdl)
+		return gentags.NewCustom(layer, mdl)
 	}
 }
 
 type GenerateMethodBody interface {
 	Create() string
-	//Read() string
-	//Update() string
-	//Delete() string
-	//Custom() string
+	Read() string
+	Update() string
+	Delete() string
+	Custom() string
 }
+
+var _ GenerateMethodBody = &gentags.Custom{}
+var _ GenerateMethodBody = &gentags.HTTP{}

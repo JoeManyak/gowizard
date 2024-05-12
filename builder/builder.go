@@ -2,7 +2,8 @@ package builder
 
 import (
 	"fmt"
-	"gowizard/builder/model"
+	"gowizard/builder/model/system"
+	"gowizard/consts"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,7 +15,7 @@ type Builder struct {
 	Unsafe      bool       `yaml:"unsafe"`
 	Path        string     `yaml:"path"`
 
-	Models []*model.Model `yaml:"models"`
+	Models []*system.Model `yaml:"models"`
 
 	LayerController *LayerController `yaml:"-"`
 }
@@ -75,6 +76,11 @@ func (b *Builder) CodeGenerate() error {
 		return fmt.Errorf("unable to generate layers: %w", err)
 	}
 
+	err = b.goModTidy()
+	if err != nil {
+		return err
+	}
+
 	err = b.gofmt()
 	if err != nil {
 		return err
@@ -94,10 +100,6 @@ func main() {
 }
 `
 
-const (
-	DefaultModelsFolder = "models"
-)
-
 func (b *Builder) initStructure() error {
 	if _, err := createIfNoExist(b.Path); err != nil {
 		return fmt.Errorf("unable to create main directory: %w", err)
@@ -114,7 +116,7 @@ func (b *Builder) initStructure() error {
 		b.LayerController.Layers[i].Path = path
 	}
 
-	_, err := createIfNoExist(filepath.Join(b.Path, DefaultModelsFolder))
+	_, err := createIfNoExist(filepath.Join(b.Path, consts.DefaultModelsFolder))
 	if err != nil {
 		return fmt.Errorf("unable to create models directory: %w", err)
 	}
@@ -171,6 +173,17 @@ func (b *Builder) mainGenerate() error {
 	err = cmd.Run()
 	if err != nil {
 		return fmt.Errorf("unable to run go mod init: %w", err)
+	}
+
+	return nil
+}
+
+func (b *Builder) goModTidy() error {
+	cmd := exec.Command("go", "mod", "tidy")
+	cmd.Dir = b.Path
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("unable to run go mod tidy: %w", err)
 	}
 
 	return nil

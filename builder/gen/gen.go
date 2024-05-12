@@ -3,6 +3,7 @@ package gen
 import (
 	"fmt"
 	"gowizard/builder/model"
+	"gowizard/builder/model/system"
 	"gowizard/util"
 	"os"
 	"strings"
@@ -44,7 +45,7 @@ func (g *Gen) AddInterface(name string, methods []model.InterfaceMethodInstance)
 
 		for j := 0; j < len(methods[i].Args)-1; j++ {
 			comma := ""
-			if j < len(methods[i].Args)-2 {
+			if j < len(methods[i].Args)-2 && j%2 == 1 {
 				comma = ", "
 			}
 
@@ -88,14 +89,14 @@ func (g *Gen) AddInterface(name string, methods []model.InterfaceMethodInstance)
 			}
 		}
 	}
-	if _, err := g.File.WriteString("}\n"); err != nil {
+	if _, err := g.File.WriteString("}\n\n"); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (g *Gen) AddStruct(model *model.Model) error {
+func (g *Gen) AddStruct(model *system.Model) error {
 	if _, err := g.File.WriteString("type " + model.Name + " struct {\n"); err != nil {
 		return err
 	}
@@ -110,14 +111,14 @@ func (g *Gen) AddStruct(model *model.Model) error {
 		}
 	}
 
-	if _, err := g.File.WriteString("}\n"); err != nil {
+	if _, err := g.File.WriteString("}\n\n"); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (g *Gen) AddMethod(mdl *model.Model, method *model.MethodInstance) error {
+func (g *Gen) AddMethod(mdl *system.Model, method *model.MethodInstance) error {
 	_, err := g.File.WriteString("func (" + mdl.GetPointerName() + ") " + method.Name + "(")
 	if err != nil {
 		return err
@@ -138,6 +139,7 @@ func (g *Gen) AddMethod(mdl *model.Model, method *model.MethodInstance) error {
 		return err
 	}
 
+	method.Returns = method.GetReturns()
 	switch len(method.Returns) {
 	case 0:
 		if _, err := g.File.WriteString("{ \n"); err != nil {
@@ -155,11 +157,11 @@ func (g *Gen) AddMethod(mdl *model.Model, method *model.MethodInstance) error {
 		}
 
 		for j := range method.Returns {
-			comma := ""
+			space := ""
 			if j < len(method.Returns)-1 {
-				comma = ", "
+				space = ", "
 			}
-			if _, err := g.File.WriteString(method.Returns[j] + comma); err != nil {
+			if _, err := g.File.WriteString(method.Returns[j] + space); err != nil {
 				return err
 			}
 		}
@@ -174,7 +176,7 @@ func (g *Gen) AddMethod(mdl *model.Model, method *model.MethodInstance) error {
 		return err
 	}
 
-	if _, err := g.File.WriteString("}\n"); err != nil {
+	if _, err := g.File.WriteString("}\n\n"); err != nil {
 		return err
 	}
 
@@ -198,7 +200,7 @@ func genImports(imports []string) string {
 		for _, v := range imports {
 			sb.WriteString(v + "\n")
 		}
-		sb.WriteString(")")
+		sb.WriteString(")\n\n")
 		return sb.String()
 	}
 }

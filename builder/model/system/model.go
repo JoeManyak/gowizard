@@ -1,6 +1,7 @@
-package model
+package system
 
 import (
+	"gowizard/consts"
 	"gowizard/util"
 	"strings"
 )
@@ -13,24 +14,24 @@ type Model struct {
 
 type MethodType string
 
-func (m MethodType) String() string {
-	if parsed, ok := DefaultMethodNamings[m.Lower()]; ok {
+func (mt MethodType) String() string {
+	if parsed, ok := DefaultMethodNamings[mt.Lower()]; ok {
 		return parsed
 	}
 
 	// if not found in default namings, just return the method name with first letter capitalized
-	runes := []rune(string(m))
+	runes := []rune(string(mt))
 	naming := strings.ToUpper(string(runes[0])) + string(runes[1:])
 
 	return naming
 }
 
-func (m MethodType) Lower() MethodType {
-	return MethodType(strings.ToLower(string(m)))
+func (mt MethodType) Lower() MethodType {
+	return MethodType(strings.ToLower(string(mt)))
 }
 
-func (m MethodType) GenerateNaming(methodModelName string) string {
-	switch m.Lower() {
+func (mt MethodType) GenerateNaming(methodModelName string) string {
+	switch mt.Lower() {
 	case MethodCreate:
 		return "Create" + methodModelName
 	case MethodRead:
@@ -40,7 +41,7 @@ func (m MethodType) GenerateNaming(methodModelName string) string {
 	case MethodDelete:
 		return "Delete" + methodModelName
 	default:
-		return m.String() + methodModelName
+		return mt.String() + methodModelName
 	}
 }
 
@@ -50,6 +51,29 @@ const (
 	MethodUpdate MethodType = "update"
 	MethodDelete MethodType = "delete"
 )
+
+func (mt MethodType) GetDefaultReturns(mdl *Model) []string {
+	switch mt {
+	case MethodRead:
+		return []string{
+			"[]" + consts.DefaultModelsFolder + "." + mdl.Name,
+			"error"}
+	case MethodDelete:
+		return []string{"error"}
+	default:
+		return []string{
+			consts.DefaultModelsFolder + "." + mdl.Name,
+			"error"}
+	}
+}
+
+func (mt MethodType) GetDefaultArgs(mdl *Model, layer *Layer) []string {
+	if layer.Type == consts.HTTPLayerType {
+		return []string{"ctx", "*gin.Context"}
+	}
+
+	return []string{util.MakePrivateName(mdl.Name + "Model"), " *" + consts.DefaultModelsFolder + "." + mdl.Name}
+}
 
 var DefaultMethodNamings = map[MethodType]string{
 	MethodCreate: "Create",
@@ -92,4 +116,12 @@ func (m *Model) GetLayer() Model {
 	return Model{
 		Name: util.MakePrivateName(m.Name),
 	}
+}
+
+type Layer struct {
+	Name      string
+	Type      string
+	Path      string
+	Models    *[]*Model
+	NextLayer *Layer
 }
