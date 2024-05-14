@@ -1,9 +1,11 @@
 package gen
 
 import (
+	"encoding/json"
 	"fmt"
 	"gowizard/builder/model"
 	"gowizard/builder/model/system"
+	"gowizard/consts"
 	"gowizard/util"
 	"os"
 	"strings"
@@ -183,8 +185,57 @@ func (g *Gen) AddMethod(mdl *system.Model, method *model.MethodInstance) error {
 	return nil
 }
 
+func (g *Gen) AddParseConfigMethod(mdl *system.Model) error {
+	_, err := g.File.WriteString("func New" + util.MakePublicName(consts.DefaultConfigFolder) + "() (*" + mdl.Name + ", error) {\n")
+	if err != nil {
+		return err
+	}
+
+	_, err = g.File.WriteString(fmt.Sprintf(`f, err := os.Open("%s.json")
+if err != nil {
+	return nil, err
+}
+defer f.Close()
+
+var c %s
+bytes, err := io.ReadAll(f)
+if err != nil {
+	return nil, err
+}
+
+err = json.Unmarshal(bytes, &c)
+if err != nil {
+	return nil, err
+}
+
+return &c, nil
+}`, consts.DefaultConfigFolder, util.MakePublicName(consts.DefaultConfigFolder)))
+	if err != nil {
+		return err
+	}
+
+	return err
+}
+
 func (g *Gen) AddImport(imports []string) error {
 	_, err := g.File.WriteString(genImports(imports))
+	return err
+}
+
+func (g *Gen) WriteJSON(mdl *system.Model) error {
+	defaults := getDefaultConfigValues()
+	var data = make(map[string]string, 10)
+	for i := range mdl.Fields {
+		data[util.PascalToSnakeCase(mdl.Fields[i].Name)] =
+			defaults[mdl.Fields[i].Name]
+	}
+
+	b, err := json.MarshalIndent(data, "", "    ")
+	if err != nil {
+		return err
+	}
+
+	_, err = g.File.Write(b)
 	return err
 }
 
@@ -202,5 +253,17 @@ func genImports(imports []string) string {
 		}
 		sb.WriteString(")\n\n")
 		return sb.String()
+	}
+}
+
+func getDefaultConfigValues() map[string]string {
+	return map[string]string{
+		"HttpHost": "localhost",
+		"HttpPort": "8080",
+
+		"PostgresHost":     "localhost",
+		"PostgresPort":     "5432",
+		"PostgresUser":     "postgres",
+		"PostgresPassword": "postgres",
 	}
 }

@@ -121,6 +121,11 @@ func (b *Builder) initStructure() error {
 		return fmt.Errorf("unable to create models directory: %w", err)
 	}
 
+	_, err = createIfNoExist(filepath.Join(b.Path, consts.DefaultConfigFolder))
+	if err != nil {
+		return fmt.Errorf("unable to create config directory: %w", err)
+	}
+
 	return nil
 }
 

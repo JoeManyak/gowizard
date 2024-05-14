@@ -64,6 +64,11 @@ func (lc *LayerController) Generate() error {
 		return err
 	}
 
+	err = lc.generateConfigStorageFile()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -80,7 +85,9 @@ func (lc *LayerController) generateMainLayerFile(layer *system.Layer) error {
 		return fmt.Errorf("unable to add package %s: %w", layer.Name, err)
 	}
 
-	err = g.AddImport([]string{util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultModelsFolder))})
+	err = g.AddImport([]string{
+		util.MakeString("github.com/gin-gonic/gin"),
+	})
 	if err != nil {
 		return fmt.Errorf("unable to add imports %s: %w", layer.Name, err)
 	}
@@ -88,12 +95,21 @@ func (lc *LayerController) generateMainLayerFile(layer *system.Layer) error {
 	// Generate layer general file
 	for j, mdl := range *layer.Models {
 		methods := make([]model.InterfaceMethodInstance, 0, len(mdl.Methods))
-		for _, method := range (*layer.Models)[j].Methods {
-			methods = append(methods, model.InterfaceMethodInstance{
-				Name:    method.String() + mdl.Name,
-				Args:    []string{util.MakePrivateName(mdl.Name), "*" + consts.DefaultModelsFolder + "." + mdl.Name},
-				Returns: method.GetDefaultReturns(mdl),
-			})
+		if layer.Type == consts.HTTPLayerType {
+			for _, method := range (*layer.Models)[j].Methods {
+				methods = append(methods, model.InterfaceMethodInstance{
+					Name: method.String() + mdl.Name,
+					Args: []string{"ctx", "*gin.Context"},
+				})
+			}
+		} else {
+			for _, method := range (*layer.Models)[j].Methods {
+				methods = append(methods, model.InterfaceMethodInstance{
+					Name:    method.String() + mdl.Name,
+					Args:    []string{util.MakePrivateName(mdl.Name), "*" + consts.DefaultModelsFolder + "." + mdl.Name},
+					Returns: method.GetDefaultReturns(mdl),
+				})
+			}
 		}
 
 		err = g.AddInterface((*layer.Models)[j].Name, methods)
@@ -187,5 +203,109 @@ func (lc *LayerController) generateModelStorageFile() error {
 		}
 	}
 
+	return nil
+}
+
+func (lc *LayerController) generateConfigStorageFile() error {
+	g, err := gen.NewGen(filepath.Join(lc.Builder.Path, consts.DefaultConfigFolder, consts.DefaultConfigFolder+".go"))
+	if err != nil {
+		return fmt.Errorf("unable to create new generator: %w", err)
+	}
+
+	err = g.AddPackage(consts.DefaultConfigFolder)
+	if err != nil {
+		return fmt.Errorf("unable to add package %s: %w", consts.DefaultConfigFolder, err)
+	}
+
+	err = g.AddImport([]string{
+		util.MakeString("encoding/json"),
+		util.MakeString("io"),
+		util.MakeString("os"),
+	})
+	if err != nil {
+		return fmt.Errorf("unable to add imports %s: %w", consts.DefaultConfigFolder, err)
+	}
+
+	mdlToCreate := system.Model{
+		Name: util.MakePublicName(consts.DefaultConfigFolder),
+	}
+	httpFields := addHTTPConfig(lc.Layers)
+	if len(httpFields) > 0 {
+		mdlToCreate.Fields = append(mdlToCreate.Fields, httpFields...)
+	}
+
+	postgresFields := addPostgresConfig(lc.Layers)
+	if len(postgresFields) > 0 {
+		mdlToCreate.Fields = append(mdlToCreate.Fields, postgresFields...)
+	}
+
+	err = g.AddStruct(&mdlToCreate)
+	if err != nil {
+		return fmt.Errorf("unable to add struct %s: %w", mdlToCreate.Name, err)
+	}
+
+	err = g.AddParseConfigMethod(&mdlToCreate)
+	if err != nil {
+		return fmt.Errorf("unable to add parse config method %s: %w", mdlToCreate.Name, err)
+	}
+
+	err = g.Close()
+	if err != nil {
+		return fmt.Errorf("unable to close file %s: %w", mdlToCreate.Name, err)
+	}
+
+	g, err = gen.NewGen(filepath.Join(lc.Builder.Path, consts.DefaultConfigFolder+".json"))
+	if err != nil {
+		return fmt.Errorf("unable to create new generator: %w", err)
+	}
+
+	err = g.WriteJSON(&mdlToCreate)
+	if err != nil {
+		return fmt.Errorf("unable to write json %s: %w", mdlToCreate.Name, err)
+	}
+
+	return nil
+}
+
+func addHTTPConfig(layers []*system.Layer) []system.Field {
+	for _, layer := range layers {
+		if layer.Type == consts.HTTPLayerType {
+			return []system.Field{
+				{
+					Name: "HttpHost",
+					Type: "string",
+				},
+				{
+					Name: "HttpPort",
+					Type: "string",
+				},
+			}
+		}
+	}
+	return nil
+}
+
+func addPostgresConfig(layers []*system.Layer) []system.Field {
+	for _, layer := range layers {
+		if layer.Type == consts.RepoLayerType {
+			return []system.Field{
+				{
+					Name: "PostgresHost",
+					Type: "string",
+				},
+				{
+					Name: "PostgresPort",
+					Type: "string",
+				},
+				{
+					Name: "PostgresUser",
+					Type: "string",
+				},
+				{
+					Name: "PostgresPassword",
+					Type: "string",
+				}}
+		}
+	}
 	return nil
 }

@@ -85,7 +85,6 @@ var DefaultMethodNamings = map[MethodType]string{
 type Field struct {
 	Name string    `yaml:"name"`
 	Type FieldType `yaml:"type"`
-	Tags []string  `yaml:"tags"`
 }
 
 type Tag struct {
