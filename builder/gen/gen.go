@@ -185,6 +185,31 @@ func (g *Gen) AddMethod(mdl *system.Model, method *model.MethodInstance) error {
 	return nil
 }
 
+func (g *Gen) AddMainRouterFunc(mdls []*system.Model) error {
+	//todo should me method, not function, in router struct initialized controller lol
+	_, err := g.File.WriteString(`func Run() {
+gin.New()
+//todo implement here
+`)
+
+	_, err = g.File.WriteString(`}`)
+	return err
+}
+
+func (g *Gen) AddSubRouterFunc(mdl *system.Model) error {
+	_, err := g.File.WriteString(fmt.Sprintf("func %sRouter(r *gin.RouterGroup) {\n", mdl.Name))
+	if err != nil {
+		return err
+	}
+
+	for i := range mdl.Methods {
+		_, err = g.File.WriteString(fmt.Sprintf("r.%s(%s, ", mdl.Name))
+		if err != nil {
+			return err
+		}
+	}
+}
+
 func (g *Gen) AddParseConfigMethod(mdl *system.Model) error {
 	_, err := g.File.WriteString("func New" + util.MakePublicName(consts.DefaultConfigFolder) + "() (*" + mdl.Name + ", error) {\n")
 	if err != nil {

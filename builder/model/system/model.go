@@ -3,6 +3,7 @@ package system
 import (
 	"gowizard/consts"
 	"gowizard/util"
+	"net/http"
 	"strings"
 )
 
@@ -42,6 +43,30 @@ func (mt MethodType) GenerateNaming(methodModelName string) string {
 		return "Delete" + methodModelName
 	default:
 		return mt.String() + methodModelName
+	}
+}
+
+func (mt MethodType) GetHTTPType() string {
+	switch mt.Lower() {
+	case MethodCreate:
+		return http.MethodPost
+	case MethodRead:
+		return http.MethodGet
+	case MethodUpdate:
+		return http.MethodPatch
+	case MethodDelete:
+		return http.MethodDelete
+	default:
+		return http.MethodPost
+	}
+}
+
+func (mt MethodType) GetRoute() string {
+	switch mt.Lower() {
+	case MethodCreate, MethodRead, MethodUpdate, MethodDelete:
+		return "\"\""
+	default:
+		return "\"" + string(mt.Lower()) + "/\""
 	}
 }
 

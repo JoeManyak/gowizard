@@ -55,6 +55,7 @@ func (b *Builder) setDefaultsIfEmpty() string {
 			},
 		}
 	}
+
 	return b.ProjectName
 }
 
@@ -76,10 +77,10 @@ func (b *Builder) CodeGenerate() error {
 		return fmt.Errorf("unable to generate layers: %w", err)
 	}
 
-	err = b.goModTidy()
-	if err != nil {
-		return err
-	}
+	/*	err = b.goModTidy()
+		if err != nil {
+			return err
+		}*/
 
 	err = b.gofmt()
 	if err != nil {
@@ -124,6 +125,11 @@ func (b *Builder) initStructure() error {
 	_, err = createIfNoExist(filepath.Join(b.Path, consts.DefaultConfigFolder))
 	if err != nil {
 		return fmt.Errorf("unable to create config directory: %w", err)
+	}
+
+	_, err = createIfNoExist(filepath.Join(b.Path, consts.DefaultRouterFolder))
+	if err != nil {
+		return fmt.Errorf("unable to create router directory: %w", err)
 	}
 
 	return nil

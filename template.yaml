@@ -1,12 +1,14 @@
 project_name: wiz
+#unsafe: true
+#path: wiz
 layers:
   - layer: controller
     tag: http
   - layer: service
-  - layer: justfortesting1
-  - layer: justfortesting2
-  - layer: repository
-    tag: postgres
+  #- layer: justfortesting1
+  #- layer: justfortesting2
+  #- layer: repository
+  #  tag: postgres
 models:
   - name: User
     fields:
