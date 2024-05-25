@@ -77,10 +77,10 @@ func (b *Builder) CodeGenerate() error {
 		return fmt.Errorf("unable to generate layers: %w", err)
 	}
 
-	/*	err = b.goModTidy()
-		if err != nil {
-			return err
-		}*/
+	err = b.goModTidy()
+	if err != nil {
+		return err
+	}
 
 	err = b.gofmt()
 	if err != nil {

@@ -44,9 +44,11 @@ func NewLayerController(
 }
 
 func (lc *LayerController) Generate() error {
-	layerTypes := make(map[string]struct{})
+	layerTypes := make(map[string]*system.Layer)
 	for _, layer := range lc.Layers {
-		layerTypes[layer.Type] = struct{}{}
+		if layer.Type != "" {
+			layerTypes[layer.Type] = layer
+		}
 		// generate general file
 		err := lc.generateMainLayerFile(layer)
 		if err != nil {
@@ -71,18 +73,61 @@ func (lc *LayerController) Generate() error {
 		return err
 	}
 
-	if _, ok := layerTypes[consts.HTTPLayerType]; ok {
-		err = lc.generateRouter()
+	if l, ok := layerTypes[consts.HTTPLayerType]; ok {
+		err = lc.generateRouter(l)
 		if err != nil {
 			return err
 		}
+	}
+
+	err = lc.generateMainFile()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (lc *LayerController) generateMainFile() error {
+	g, err := gen.NewGen("main.go")
+	if err != nil {
+		return fmt.Errorf("unable to create new main generator: %w", err)
+	}
+
+	err = g.AddPackage("main")
+	if err != nil {
+		return fmt.Errorf("unable to add package main: %w", err)
+	}
+
+	importsToAdd := make([]string, 0, len(lc.Layers)+3)
+	importsToAdd = append(importsToAdd,
+		util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultRouterFolder)),
+		util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultConfigFolder)),
+	)
+	for i := range lc.Layers {
+		importsToAdd = append(importsToAdd, util.MakeString(filepath.Join(lc.Builder.ProjectName, lc.Layers[i].Name)))
+	}
+
+	err = g.AddImport(importsToAdd)
+	if err != nil {
+		return fmt.Errorf("unable to add imports: %w", err)
+	}
+
+	_, err = g.File.WriteString("func main() {\n")
+	if err != nil {
+		return err
+	}
+
+	_, err = g.File.WriteString(fmt.Sprintf("c, err := New%s()\nif err != nil {\npanic(err.error)\n}\n", util.MakePublicName(consts.DefaultConfigFolder)))
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
 func (lc *LayerController) generateMainLayerFile(layer *system.Layer) error {
-	g, err := gen.NewGen(layer.Path + layer.Name + ".go")
+	g, err := gen.NewGen(filepath.Join(lc.Builder.Path + layer.Name + ".go"))
 	if err != nil {
 		return fmt.Errorf("unable to create new generator: %w", err)
 	}
@@ -219,23 +264,23 @@ func (lc *LayerController) generateModelStorageFile() error {
 	return nil
 }
 
-func (lc *LayerController) generateRouter() error {
-	err := lc.generateRouterFile()
+func (lc *LayerController) generateRouter(httpLayer *system.Layer) error {
+	err := lc.generateRouterFile(httpLayer, lc.Models)
 	if err != nil {
 		return err
 	}
-
-	for i := range lc.Models {
-		err = lc.generateSubRouterFile(lc.Models[i])
-		if err != nil {
-			return err
-		}
-	}
+	/*
+		for i := range lc.Models {
+			err = lc.generateSubRouterFile(httpLayer, lc.Models[i])
+			if err != nil {
+				return err
+			}
+		}*/
 
 	return nil
 }
 
-func (lc *LayerController) generateRouterFile() error {
+func (lc *LayerController) generateRouterFile(layer *system.Layer, mdls []*system.Model) error {
 	g, err := gen.NewGen(filepath.Join(lc.Builder.Path, consts.DefaultRouterFolder, consts.DefaultRouterFolder+".go"))
 	if err != nil {
 		return fmt.Errorf("unable to create new generator: %w", err)
@@ -248,40 +293,38 @@ func (lc *LayerController) generateRouterFile() error {
 		return fmt.Errorf("unable to create add packages")
 	}
 
-	err = g.AddImport([]string{util.MakeString(consts.GinURL)})
+	err = g.AddImport([]string{
+		util.MakeString(consts.GinURL),
+		util.MakeString(filepath.Join(lc.Builder.ProjectName, layer.Name)),
+		util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultConfigFolder)),
+	})
 	if err != nil {
 		return fmt.Errorf("unable to add imports")
 	}
 
-	err = g.AddMainRouterFunc(lc.Models)
+	routerFields := make([]system.Field, len(mdls))
+	routerFields = append(routerFields, system.Field{
+		Name: "Config",
+		Type: system.FieldType(consts.DefaultConfigFolder + "." + util.MakePublicName("Config")),
+	})
+	for i := range mdls {
+		routerFields[i] = system.Field{
+			Name: mdls[i].Name,
+			Type: system.FieldType(layer.Name + "." + mdls[i].Name),
+		}
+	}
+	routerModel := &system.Model{
+		Name:   "Router",
+		Fields: routerFields,
+	}
+	err = g.AddStruct(routerModel)
 	if err != nil {
-		return fmt.Errorf("unable to add main router file")
+		return fmt.Errorf("unable to add struct Router")
 	}
 
-	err = g.Close()
+	err = g.AddMainRouterNewFunc(routerModel)
 	if err != nil {
-		return fmt.Errorf("unable to close router generator")
-	}
-
-	return nil
-}
-
-func (lc *LayerController) generateSubRouterFile(mdl *system.Model) error {
-	g, err := gen.NewGen(filepath.Join(lc.Builder.Path, consts.DefaultRouterFolder, mdl.GetFilename()))
-	if err != nil {
-		return fmt.Errorf("unable to create new generator: %w", err)
-	}
-
-	err = g.AddPackage(
-		consts.DefaultRouterFolder,
-	)
-	if err != nil {
-		return fmt.Errorf("unable to create add packages")
-	}
-
-	err = g.AddImport([]string{util.MakeString(consts.GinURL)})
-	if err != nil {
-		return fmt.Errorf("unable to add imports")
+		return err
 	}
 
 	err = g.AddMainRouterFunc(lc.Models)

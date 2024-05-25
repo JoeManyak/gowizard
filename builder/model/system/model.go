@@ -64,9 +64,9 @@ func (mt MethodType) GetHTTPType() string {
 func (mt MethodType) GetRoute() string {
 	switch mt.Lower() {
 	case MethodCreate, MethodRead, MethodUpdate, MethodDelete:
-		return "\"\""
+		return "\"/\""
 	default:
-		return "\"" + string(mt.Lower()) + "/\""
+		return "\"/" + string(mt.Lower()) + "\""
 	}
 }
 

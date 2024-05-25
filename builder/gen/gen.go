@@ -185,29 +185,67 @@ func (g *Gen) AddMethod(mdl *system.Model, method *model.MethodInstance) error {
 	return nil
 }
 
-func (g *Gen) AddMainRouterFunc(mdls []*system.Model) error {
-	//todo should me method, not function, in router struct initialized controller lol
-	_, err := g.File.WriteString(`func Run() {
-gin.New()
-//todo implement here
-`)
+func (g *Gen) AddMainRouterNewFunc(mdl *system.Model) error {
+	args := fmt.Sprintf("%s %s", mdl.Fields[0].Name, mdl.Fields[0].Type)
+	for _, f := range mdl.Fields[1:] {
+		args = fmt.Sprintf("%s, %s %s", args, f.Name, f.Type)
+	}
 
-	_, err = g.File.WriteString(`}`)
-	return err
-}
-
-func (g *Gen) AddSubRouterFunc(mdl *system.Model) error {
-	_, err := g.File.WriteString(fmt.Sprintf("func %sRouter(r *gin.RouterGroup) {\n", mdl.Name))
+	_, err := g.File.WriteString(fmt.Sprintf("func NewRouter(%s) *Router {\nreturn &Router{\n", args))
 	if err != nil {
 		return err
 	}
 
-	for i := range mdl.Methods {
-		_, err = g.File.WriteString(fmt.Sprintf("r.%s(%s, ", mdl.Name))
+	for _, f := range mdl.Fields {
+		_, err = g.File.WriteString(fmt.Sprintf("%s: %s,\n", f.Name, f.Name))
 		if err != nil {
 			return err
 		}
 	}
+
+	_, err = g.File.WriteString("}\n}\n\n")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (g *Gen) AddMainRouterFunc(mdls []*system.Model) error {
+	configFile := util.MakePublicName(consts.DefaultConfigFolder)
+
+	//todo should me method, not function, in router struct initialized controller lol
+	_, err := g.File.WriteString(`func (r *Router) Run() {
+g := gin.New()
+
+`)
+
+	for i := range mdls {
+		routerName := fmt.Sprintf("%sRouter", mdls[i].Name)
+		_, err = g.File.WriteString(fmt.Sprintf("// Generated router for %s use cases\n%s := g.Group(\"/%s\")\n", mdls[i].Name, routerName, mdls[i].GetLayer().Name))
+		if err != nil {
+			return err
+		}
+
+		for _, method := range mdls[i].Methods {
+			_, err = g.File.WriteString(fmt.Sprintf("%s.%s(%s, r.%s.%s%s)\n", routerName, method.GetHTTPType(), method.GetRoute(), mdls[i].Name, method.String(), mdls[i].Name))
+			if err != nil {
+				return err
+			}
+		}
+
+		_, err = g.File.WriteString("\n")
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = g.File.WriteString(fmt.Sprintf(`err := g.Run(r.%s.HttpHost + ":" + r.%s.HttpPort)
+if err != nil {
+panic(err.Error())
+}
+}
+`, configFile, configFile))
+	return err
 }
 
 func (g *Gen) AddParseConfigMethod(mdl *system.Model) error {
