@@ -120,6 +120,55 @@ func (g *Gen) AddStruct(model *system.Model) error {
 	return nil
 }
 
+func (g *Gen) NewLayerFunc(layer *system.Layer, mdl *system.Model) error {
+	args := fmt.Sprintf("%s *%s.%s", consts.DefaultConfigFolder, consts.DefaultConfigFolder, util.MakePublicName(consts.DefaultConfigFolder))
+	if layer.NextLayer != nil {
+		args = fmt.Sprintf("%s, %s %s.%s", args, layer.NextLayer.Name, layer.NextLayer.Name, mdl.Name)
+	}
+
+	_, err := g.File.WriteString(fmt.Sprintf("func New%s%s(%s) %s {\nreturn &%s{\n", mdl.Name, util.MakePublicName(layer.Name), args, mdl.Name, util.MakePrivateName(mdl.Name)))
+	if err != nil {
+		return err
+	}
+
+	_, err = g.File.WriteString(fmt.Sprintf("%s: %s,\n", consts.DefaultConfigFolder, consts.DefaultConfigFolder))
+	if err != nil {
+		return err
+	}
+
+	if layer.NextLayer != nil {
+		_, err = g.File.WriteString(fmt.Sprintf("%s: %s,\n", layer.NextLayer.Name, layer.NextLayer.Name))
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = g.File.WriteString("}\n}\n\n")
+	return err
+}
+
+func (g *Gen) AddMethodWithSwagger(mdl *system.Model, method *model.MethodInstance) error {
+	publicName := util.MakePublicName(mdl.Name)
+	route := method.Type.GetRoute()
+	if route != "" {
+		route = "/" + route
+	}
+	_, err := g.File.WriteString(fmt.Sprintf(
+		`// @Summary %s %s
+// @Tags %s
+// @Accept json
+// @Produce json
+// @Param message body %s.%s
+// @Success 200 {object} %s.%s
+// @Router /%s%s [%s]
+`, method.Type.String(), publicName, publicName, consts.DefaultModelsFolder, publicName, consts.DefaultModelsFolder, publicName, mdl.GetLayer().Name, route, strings.ToLower(method.Type.GetHTTPType())))
+	if err != nil {
+		return err
+	}
+
+	return g.AddMethod(mdl, method)
+}
+
 func (g *Gen) AddMethod(mdl *system.Model, method *model.MethodInstance) error {
 	_, err := g.File.WriteString("func (" + mdl.GetPointerName() + ") " + method.Name + "(")
 	if err != nil {
@@ -227,7 +276,7 @@ g := gin.New()
 		}
 
 		for _, method := range mdls[i].Methods {
-			_, err = g.File.WriteString(fmt.Sprintf("%s.%s(%s, r.%s.%s%s)\n", routerName, method.GetHTTPType(), method.GetRoute(), mdls[i].Name, method.String(), mdls[i].Name))
+			_, err = g.File.WriteString(fmt.Sprintf("%s.%s(\"/%s\", r.%s.%s%s)\n", routerName, method.GetHTTPType(), method.GetRoute(), mdls[i].Name, method.String(), mdls[i].Name))
 			if err != nil {
 				return err
 			}
@@ -321,7 +370,7 @@ func genImports(imports []string) string {
 
 func getDefaultConfigValues() map[string]string {
 	return map[string]string{
-		"HttpHost": "localhost",
+		"HttpHost": "",
 		"HttpPort": "8080",
 
 		"PostgresHost":     "localhost",

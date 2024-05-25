@@ -89,7 +89,7 @@ func (lc *LayerController) Generate() error {
 }
 
 func (lc *LayerController) generateMainFile() error {
-	g, err := gen.NewGen("main.go")
+	g, err := gen.NewGen(filepath.Join(lc.Builder.Path, "main.go"))
 	if err != nil {
 		return fmt.Errorf("unable to create new main generator: %w", err)
 	}
@@ -99,11 +99,22 @@ func (lc *LayerController) generateMainFile() error {
 		return fmt.Errorf("unable to add package main: %w", err)
 	}
 
+	var httpLayer *system.Layer
+	for i := range lc.Layers {
+		if lc.Layers[i].Type == consts.HTTPLayerType {
+			httpLayer = lc.Layers[i]
+		}
+	}
+
 	importsToAdd := make([]string, 0, len(lc.Layers)+3)
 	importsToAdd = append(importsToAdd,
-		util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultRouterFolder)),
 		util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultConfigFolder)),
 	)
+	if httpLayer != nil {
+		importsToAdd = append(importsToAdd,
+			util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultRouterFolder)),
+		)
+	}
 	for i := range lc.Layers {
 		importsToAdd = append(importsToAdd, util.MakeString(filepath.Join(lc.Builder.ProjectName, lc.Layers[i].Name)))
 	}
@@ -118,7 +129,47 @@ func (lc *LayerController) generateMainFile() error {
 		return err
 	}
 
-	_, err = g.File.WriteString(fmt.Sprintf("c, err := New%s()\nif err != nil {\npanic(err.error)\n}\n", util.MakePublicName(consts.DefaultConfigFolder)))
+	_, err = g.File.WriteString(fmt.Sprintf("%s, err := %s.New%s()\nif err != nil {\npanic(err.Error())\n}\n\n",
+		consts.DefaultConfigFolder, consts.DefaultConfigFolder, util.MakePublicName(consts.DefaultConfigFolder)))
+	if err != nil {
+		return err
+	}
+
+	for i := len(lc.Layers) - 1; i >= 0; i-- {
+		for _, mdl := range lc.Models {
+			args := "config"
+			if i < len(lc.Layers)-1 {
+				args = fmt.Sprintf("%s, %s%s", args, mdl.Name, util.MakePublicName(lc.Layers[i+1].Name))
+			}
+
+			_, err = g.File.WriteString(fmt.Sprintf("%s%s := %s.New%s%s(%s)\n", mdl.Name, util.MakePublicName(lc.Layers[i].Name), lc.Layers[i].Name, mdl.Name, util.MakePublicName(lc.Layers[i].Name), args))
+		}
+
+		_, err = g.File.WriteString("\n")
+		if err != nil {
+			return err
+		}
+	}
+
+	if httpLayer != nil {
+		args := lc.Models[0].Name + util.MakePublicName(httpLayer.Name)
+		for i := range lc.Models[1:] {
+			args += ", " + lc.Models[i+1].Name + util.MakePublicName(httpLayer.Name)
+		}
+		args += ", " + consts.DefaultConfigFolder
+
+		_, err = g.File.WriteString(fmt.Sprintf("r := %s.New%s(%s)\n", consts.DefaultRouterFolder, util.MakePublicName(consts.DefaultRouterFolder), args))
+		if err != nil {
+			return err
+		}
+
+		_, err = g.File.WriteString("r.Run()")
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = g.File.WriteString("}\n")
 	if err != nil {
 		return err
 	}
@@ -127,7 +178,7 @@ func (lc *LayerController) generateMainFile() error {
 }
 
 func (lc *LayerController) generateMainLayerFile(layer *system.Layer) error {
-	g, err := gen.NewGen(filepath.Join(lc.Builder.Path + layer.Name + ".go"))
+	g, err := gen.NewGen(layer.Path + layer.Name + ".go")
 	if err != nil {
 		return fmt.Errorf("unable to create new generator: %w", err)
 	}
@@ -191,8 +242,16 @@ func (lc *LayerController) generateModelLayerFile(layer *system.Layer, mdl *syst
 		return fmt.Errorf("unable to add package %s: %w", layer.Name, err)
 	}
 
-	importsToAdd := []string{util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultModelsFolder))}
+	importsToAdd := []string{
+		util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultModelsFolder)),
+		util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultConfigFolder)),
+	}
 	privateMdl := mdl.GetLayer()
+	privateMdl.Fields = append(privateMdl.Fields, system.Field{
+		Name: consts.DefaultConfigFolder,
+		Type: system.FieldType("*" + consts.DefaultConfigFolder + "." + util.MakePublicName(consts.DefaultConfigFolder)),
+	})
+
 	if layer.NextLayer != nil {
 		importsToAdd = append(importsToAdd, util.MakeString(filepath.Join(lc.Builder.ProjectName, layer.NextLayer.Name)))
 
@@ -216,6 +275,11 @@ func (lc *LayerController) generateModelLayerFile(layer *system.Layer, mdl *syst
 		return fmt.Errorf("unable to add struct %s: %w", mdl.Name, err)
 	}
 
+	err = g.NewLayerFunc(layer, mdl)
+	if err != nil {
+		return fmt.Errorf("unable to add new layer func %s: %w", mdl.Name, err)
+	}
+
 	for _, iMdl := range mdl.Methods {
 		genMethod := model.MethodInstance{
 			Layer: layer,
@@ -227,6 +291,12 @@ func (lc *LayerController) generateModelLayerFile(layer *system.Layer, mdl *syst
 
 		if layer.Type == consts.HTTPLayerType {
 			genMethod.Returns = []string{""}
+			err = g.AddMethodWithSwagger(&privateMdl, &genMethod)
+			if err != nil {
+				return fmt.Errorf("unable to add method %s with swagger: %w", mdl.Name, err)
+			}
+
+			continue
 		}
 
 		err = g.AddMethod(&privateMdl, &genMethod)
@@ -305,7 +375,7 @@ func (lc *LayerController) generateRouterFile(layer *system.Layer, mdls []*syste
 	routerFields := make([]system.Field, len(mdls))
 	routerFields = append(routerFields, system.Field{
 		Name: "Config",
-		Type: system.FieldType(consts.DefaultConfigFolder + "." + util.MakePublicName("Config")),
+		Type: "*" + system.FieldType(consts.DefaultConfigFolder+"."+util.MakePublicName("Config")),
 	})
 	for i := range mdls {
 		routerFields[i] = system.Field{
