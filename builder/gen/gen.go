@@ -158,10 +158,10 @@ func (g *Gen) AddMethodWithSwagger(mdl *system.Model, method *model.MethodInstan
 // @Tags %s
 // @Accept json
 // @Produce json
-// @Param message body %s.%s
+// @Param message body %s.%s true "%s"
 // @Success 200 {object} %s.%s
 // @Router /%s%s [%s]
-`, method.Type.String(), publicName, publicName, consts.DefaultModelsFolder, publicName, consts.DefaultModelsFolder, publicName, mdl.GetLayer().Name, route, strings.ToLower(method.Type.GetHTTPType())))
+`, method.Type.String(), publicName, publicName, consts.DefaultModelsFolder, publicName, mdl.Name, consts.DefaultModelsFolder, publicName, mdl.GetLayer().Name, route, strings.ToLower(method.Type.GetHTTPType())))
 	if err != nil {
 		return err
 	}
@@ -262,10 +262,10 @@ func (g *Gen) AddMainRouterNewFunc(mdl *system.Model) error {
 func (g *Gen) AddMainRouterFunc(mdls []*system.Model) error {
 	configFile := util.MakePublicName(consts.DefaultConfigFolder)
 
-	//todo should me method, not function, in router struct initialized controller lol
 	_, err := g.File.WriteString(`func (r *Router) Run() {
 g := gin.New()
 
+g.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 `)
 
 	for i := range mdls {

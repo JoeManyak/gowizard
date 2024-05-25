@@ -87,6 +87,11 @@ func (b *Builder) CodeGenerate() error {
 		return err
 	}
 
+	err = b.swaggerGenerate()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -206,6 +211,18 @@ func (b *Builder) gofmt() error {
 	err := cmd.Run()
 	if err != nil {
 		return fmt.Errorf("unable to run gofmt: %w", err)
+	}
+
+	return nil
+}
+
+// swaggerGenerate runs swag init --parseDependency --parseInternal --parseDepth 1
+func (b *Builder) swaggerGenerate() error {
+	cmd := exec.Command("swag", "init", "--parseDependency", "--parseInternal", "--parseDepth", "1")
+	cmd.Dir = b.Path
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("unable to run swaggo: %w", err)
 	}
 
 	return nil

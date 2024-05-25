@@ -364,6 +364,9 @@ func (lc *LayerController) generateRouterFile(layer *system.Layer, mdls []*syste
 	}
 
 	err = g.AddImport([]string{
+		"_ " + util.MakeString(lc.Builder.ProjectName+"/docs"),
+		"swaggerfiles " + util.MakeString("github.com/swaggo/files"),
+		"ginSwagger " + util.MakeString("github.com/swaggo/gin-swagger"),
 		util.MakeString(consts.GinURL),
 		util.MakeString(filepath.Join(lc.Builder.ProjectName, layer.Name)),
 		util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultConfigFolder)),
