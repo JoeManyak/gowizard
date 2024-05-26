@@ -126,7 +126,12 @@ func (g *Gen) NewLayerFunc(layer *system.Layer, mdl *system.Model) error {
 		args = fmt.Sprintf("%s, %s %s.%s", args, layer.NextLayer.Name, layer.NextLayer.Name, mdl.Name)
 	}
 
-	_, err := g.File.WriteString(fmt.Sprintf("func New%s%s(%s) %s {\nreturn &%s{\n", mdl.Name, util.MakePublicName(layer.Name), args, mdl.Name, util.MakePrivateName(mdl.Name)))
+	if layer.Type == consts.RepoLayerType {
+		args = fmt.Sprintf("%s, db *gorm.DB", args)
+	}
+
+	_, err := g.File.WriteString(fmt.Sprintf("func New%s%s(%s) %s {\nreturn &%s{\n",
+		mdl.Name, util.MakePublicName(layer.Name), args, mdl.Name, util.MakePrivateName(mdl.Name)))
 	if err != nil {
 		return err
 	}
@@ -138,6 +143,12 @@ func (g *Gen) NewLayerFunc(layer *system.Layer, mdl *system.Model) error {
 
 	if layer.NextLayer != nil {
 		_, err = g.File.WriteString(fmt.Sprintf("%s: %s,\n", layer.NextLayer.Name, layer.NextLayer.Name))
+		if err != nil {
+			return err
+		}
+	}
+	if layer.Type == consts.RepoLayerType {
+		_, err = g.File.WriteString("db: db,\n")
 		if err != nil {
 			return err
 		}
@@ -375,6 +386,7 @@ func getDefaultConfigValues() map[string]string {
 
 		"PostgresHost":     "localhost",
 		"PostgresPort":     "5432",
+		"PostgresDb":       "default",
 		"PostgresUser":     "postgres",
 		"PostgresPassword": "postgres",
 	}

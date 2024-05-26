@@ -78,7 +78,7 @@ const (
 )
 
 func (mt MethodType) GetDefaultReturns(mdl *Model) []string {
-	switch mt {
+	switch MethodType(strings.ToLower(string(mt))) {
 	case MethodRead:
 		return []string{
 			"[]" + consts.DefaultModelsFolder + "." + mdl.Name,
@@ -87,7 +87,7 @@ func (mt MethodType) GetDefaultReturns(mdl *Model) []string {
 		return []string{"error"}
 	default:
 		return []string{
-			consts.DefaultModelsFolder + "." + mdl.Name,
+			"*" + consts.DefaultModelsFolder + "." + mdl.Name,
 			"error"}
 	}
 }

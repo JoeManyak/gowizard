@@ -100,9 +100,14 @@ func (lc *LayerController) generateMainFile() error {
 	}
 
 	var httpLayer *system.Layer
+	var postgresLayer *system.Layer
 	for i := range lc.Layers {
 		if lc.Layers[i].Type == consts.HTTPLayerType {
 			httpLayer = lc.Layers[i]
+		}
+
+		if lc.Layers[i].Type == consts.RepoLayerType {
+			postgresLayer = lc.Layers[i]
 		}
 	}
 
@@ -113,6 +118,14 @@ func (lc *LayerController) generateMainFile() error {
 	if httpLayer != nil {
 		importsToAdd = append(importsToAdd,
 			util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultRouterFolder)),
+		)
+	}
+	if postgresLayer != nil {
+		importsToAdd = append(importsToAdd,
+			util.MakeString("fmt"),
+			util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultModelsFolder)),
+			util.MakeString(consts.GormURL),
+			util.MakeString(consts.GormPostgresDriverURL),
 		)
 	}
 	for i := range lc.Layers {
@@ -135,14 +148,48 @@ func (lc *LayerController) generateMainFile() error {
 		return err
 	}
 
+	if postgresLayer != nil {
+		_, err = g.File.WriteString(
+			fmt.Sprintf("dsn := fmt.Sprintf(\"host = %%s user = %%s password = %%s dbname = %%s port = %%s sslmode=disable\", %s.PostgresHost, %s.PostgresUser, %s.PostgresPassword, %s.PostgresDb, %s.PostgresPort)\n",
+				consts.DefaultConfigFolder, consts.DefaultConfigFolder, consts.DefaultConfigFolder, consts.DefaultConfigFolder, consts.DefaultConfigFolder),
+		)
+		if err != nil {
+			return err
+		}
+
+		_, err = g.File.WriteString(`db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+if err != nil {
+panic(err.Error)
+}
+
+err = db.AutoMigrate(
+`)
+
+		for _, mdl := range lc.Models {
+			_, err = g.File.WriteString(fmt.Sprintf("&%s.%s{},\n", consts.DefaultModelsFolder, mdl.Name))
+		}
+		_, err = g.File.WriteString(`)
+if err != nil {
+panic(err.Error())
+}
+
+`)
+	}
+
 	for i := len(lc.Layers) - 1; i >= 0; i-- {
 		for _, mdl := range lc.Models {
 			args := "config"
 			if i < len(lc.Layers)-1 {
 				args = fmt.Sprintf("%s, %s%s", args, mdl.Name, util.MakePublicName(lc.Layers[i+1].Name))
 			}
+			if lc.Layers[i].Type == consts.RepoLayerType {
+				args = fmt.Sprintf("%s, db", args)
+			}
 
 			_, err = g.File.WriteString(fmt.Sprintf("%s%s := %s.New%s%s(%s)\n", mdl.Name, util.MakePublicName(lc.Layers[i].Name), lc.Layers[i].Name, mdl.Name, util.MakePublicName(lc.Layers[i].Name), args))
+			if err != nil {
+				return err
+			}
 		}
 
 		_, err = g.File.WriteString("\n")
@@ -265,6 +312,14 @@ func (lc *LayerController) generateModelLayerFile(layer *system.Layer, mdl *syst
 		importsToAdd = append(importsToAdd, util.MakeString(consts.GinURL))
 	}
 
+	if layer.Type == consts.RepoLayerType {
+		importsToAdd = append(importsToAdd, util.MakeString("gorm.io/gorm"))
+		privateMdl.Fields = append(privateMdl.Fields, system.Field{
+			Name: "db",
+			Type: "*gorm.DB",
+		})
+	}
+
 	err = g.AddImport(importsToAdd)
 	if err != nil {
 		return fmt.Errorf("unable to add imports %s: %w", mdl.Name, err)
@@ -339,13 +394,6 @@ func (lc *LayerController) generateRouter(httpLayer *system.Layer) error {
 	if err != nil {
 		return err
 	}
-	/*
-		for i := range lc.Models {
-			err = lc.generateSubRouterFile(httpLayer, lc.Models[i])
-			if err != nil {
-				return err
-			}
-		}*/
 
 	return nil
 }
@@ -502,6 +550,10 @@ func addPostgresConfig(layers []*system.Layer) []system.Field {
 				},
 				{
 					Name: "PostgresPort",
+					Type: "string",
+				},
+				{
+					Name: "PostgresDb",
 					Type: "string",
 				},
 				{

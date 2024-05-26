@@ -3,6 +3,7 @@ package gentags
 import (
 	"fmt"
 	"gowizard/builder/model/system"
+	"gowizard/consts"
 	"gowizard/util"
 	"strings"
 )
@@ -12,54 +13,44 @@ type Postgres struct {
 	layer         *system.Layer
 }
 
-func (c *Postgres) Create() string {
-	if c.layer.NextLayer == nil {
-		return defaultError
+func NewPostgres(layer *system.Layer, modelInstance *system.Model) *Postgres {
+	return &Postgres{
+		layer:         layer,
+		modelInstance: modelInstance,
 	}
-
-	return fmt.Sprintf("return %s.%s.Create%s(%s)\n",
-		strings.ToLower(string([]rune(c.modelInstance.Name)[0])),
-		c.layer.NextLayer.Name,
-		c.modelInstance.Name,
-		util.MakePrivateName(c.modelInstance.Name)+"Model")
 }
 
-func (c *Postgres) Read() string {
-	if c.layer.NextLayer == nil {
-		return defaultError
-	}
-
-	return fmt.Sprintf("return %s.%s.Read%s(%s)\n",
-		strings.ToLower(string([]rune(c.modelInstance.Name)[0])),
-		c.layer.NextLayer.Name,
-		c.modelInstance.Name,
-		util.MakePrivateName(c.modelInstance.Name)+"Model")
+func (p *Postgres) Create() string {
+	return fmt.Sprintf(`result := %s.db.Create(%sModel)
+return %sModel, result.Error
+`, strings.ToLower(string([]rune(p.modelInstance.Name)[0])), util.MakePrivateName(p.modelInstance.Name), util.MakePrivateName(p.modelInstance.Name))
 }
 
-func (c *Postgres) Update() string {
-	if c.layer.NextLayer == nil {
-		return defaultError
-	}
-
-	return fmt.Sprintf("return %s.%s.Update%s(%s)\n",
-		strings.ToLower(string([]rune(c.modelInstance.Name)[0])),
-		c.layer.NextLayer.Name,
-		c.modelInstance.Name,
-		util.MakePrivateName(c.modelInstance.Name)+"Model")
+func (p *Postgres) Read() string {
+	return fmt.Sprintf(`var %sModelList []%s.%s
+result := %s.db.Where(%sModel).Find(&%sModelList)
+return %sModelList, result.Error
+`, util.MakePrivateName(p.modelInstance.Name),
+		consts.DefaultModelsFolder,
+		p.modelInstance.Name,
+		strings.ToLower(string([]rune(p.modelInstance.Name)[0])),
+		util.MakePrivateName(p.modelInstance.Name),
+		util.MakePrivateName(p.modelInstance.Name),
+		util.MakePrivateName(p.modelInstance.Name))
 }
 
-func (c *Postgres) Delete() string {
-	if c.layer.NextLayer == nil {
-		return defaultError
-	}
-
-	return fmt.Sprintf("return %s.%s.Delete%s(%s)\n",
-		strings.ToLower(string([]rune(c.modelInstance.Name)[0])),
-		c.layer.NextLayer.Name,
-		c.modelInstance.Name,
-		util.MakePrivateName(c.modelInstance.Name)+"Model")
+func (p *Postgres) Update() string {
+	return fmt.Sprintf(`result := %s.db.Save(%sModel)
+return %sModel, result.Error
+`, strings.ToLower(string([]rune(p.modelInstance.Name)[0])), util.MakePrivateName(p.modelInstance.Name), util.MakePrivateName(p.modelInstance.Name))
 }
 
-func (c *Postgres) Custom() string {
+func (p *Postgres) Delete() string {
+	return fmt.Sprintf(`result := %s.db.Delete(%sModel)
+return result.Error
+`, strings.ToLower(string([]rune(p.modelInstance.Name)[0])), util.MakePrivateName(p.modelInstance.Name))
+}
+
+func (p *Postgres) Custom() string {
 	return defaultCustom
 }
