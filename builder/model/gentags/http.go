@@ -13,7 +13,7 @@ type HTTP struct {
 }
 
 const (
-	baseBody = `var req %s
+	baseHTTPBody = `var req %s
 err := ctx.ShouldBindBodyWithJSON(&req)
 if err != nil {
 	ctx.JSON(422, gin.H{"error": err.Error()})
@@ -28,6 +28,22 @@ if err != nil {
 
 ctx.JSON(200, gin.H{"data": res})
 `
+
+	deleteHTTPBody = `var req %s
+err := ctx.ShouldBindBodyWithJSON(&req)
+if err != nil {
+	ctx.JSON(422, gin.H{"error": err.Error()})
+	return
+}
+
+err := %s.%s.%s%s(&req)
+if err != nil {
+	ctx.JSON(500, gin.H{"error": err.Error()})
+	return
+}
+
+ctx.String(200, gin.H{"data": "done"})
+`
 )
 
 func NewHTTP(layer *system.Layer, modelInstance *system.Model) *HTTP {
@@ -39,7 +55,7 @@ func NewHTTP(layer *system.Layer, modelInstance *system.Model) *HTTP {
 
 func (h *HTTP) Create() string {
 	modelType := fmt.Sprintf("%s.%s", consts.DefaultModelsFolder, h.modelInstance.Name)
-	return fmt.Sprintf(baseBody,
+	return fmt.Sprintf(baseHTTPBody,
 		modelType,
 		strings.ToLower(string([]rune(h.modelInstance.Name)[0])),
 		h.layer.NextLayer.Name,
@@ -50,7 +66,7 @@ func (h *HTTP) Create() string {
 
 func (h *HTTP) Read() string {
 	modelType := fmt.Sprintf("%s.%s", consts.DefaultModelsFolder, h.modelInstance.Name)
-	return fmt.Sprintf(baseBody,
+	return fmt.Sprintf(baseHTTPBody,
 		modelType,
 		strings.ToLower(string([]rune(h.modelInstance.Name)[0])),
 		h.layer.NextLayer.Name,
@@ -61,7 +77,7 @@ func (h *HTTP) Read() string {
 
 func (h *HTTP) Update() string {
 	modelType := fmt.Sprintf("%s.%s", consts.DefaultModelsFolder, h.modelInstance.Name)
-	return fmt.Sprintf(baseBody,
+	return fmt.Sprintf(baseHTTPBody,
 		modelType,
 		strings.ToLower(string([]rune(h.modelInstance.Name)[0])),
 		h.layer.NextLayer.Name,
@@ -72,7 +88,7 @@ func (h *HTTP) Update() string {
 
 func (h *HTTP) Delete() string {
 	modelType := fmt.Sprintf("%s.%s", consts.DefaultModelsFolder, h.modelInstance.Name)
-	return fmt.Sprintf(baseBody,
+	return fmt.Sprintf(deleteHTTPBody,
 		modelType,
 		strings.ToLower(string([]rune(h.modelInstance.Name)[0])),
 		h.layer.NextLayer.Name,

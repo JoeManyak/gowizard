@@ -101,6 +101,7 @@ func (lc *LayerController) generateMainFile() error {
 
 	var httpLayer *system.Layer
 	var postgresLayer *system.Layer
+	var telebotLayer *system.Layer
 	for i := range lc.Layers {
 		if lc.Layers[i].Type == consts.HTTPLayerType {
 			httpLayer = lc.Layers[i]
@@ -108,6 +109,10 @@ func (lc *LayerController) generateMainFile() error {
 
 		if lc.Layers[i].Type == consts.RepoLayerType {
 			postgresLayer = lc.Layers[i]
+		}
+
+		if lc.Layers[i].Type == consts.TelebotLayerType {
+			telebotLayer = lc.Layers[i]
 		}
 	}
 
@@ -126,6 +131,12 @@ func (lc *LayerController) generateMainFile() error {
 			util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultModelsFolder)),
 			util.MakeString(consts.GormURL),
 			util.MakeString(consts.GormPostgresDriverURL),
+		)
+	}
+	if telebotLayer != nil {
+		importsToAdd = append(importsToAdd,
+			util.MakeString("time"),
+			util.MakeString(consts.TelebotURL),
 		)
 	}
 	for i := range lc.Layers {
@@ -176,6 +187,14 @@ panic(err.Error())
 `)
 	}
 
+	if telebotLayer != nil {
+		_, err = g.File.WriteString(fmt.Sprintf(`bot, err := telebot.NewBot(telebot.Settings{
+Token: %s.TelebotToken,
+Poller: &telebot.LongPoller{Timeout: 10*time.Second},
+})
+`, consts.DefaultConfigFolder))
+	}
+
 	for i := len(lc.Layers) - 1; i >= 0; i-- {
 		for _, mdl := range lc.Models {
 			args := "config"
@@ -184,6 +203,9 @@ panic(err.Error())
 			}
 			if lc.Layers[i].Type == consts.RepoLayerType {
 				args = fmt.Sprintf("%s, db", args)
+			}
+			if lc.Layers[i].Type == consts.TelebotLayerType {
+				args = fmt.Sprintf("%s, bot", args)
 			}
 
 			_, err = g.File.WriteString(fmt.Sprintf("%s%s := %s.New%s%s(%s)\n", mdl.Name, util.MakePublicName(lc.Layers[i].Name), lc.Layers[i].Name, mdl.Name, util.MakePublicName(lc.Layers[i].Name), args))
@@ -238,10 +260,16 @@ func (lc *LayerController) generateMainLayerFile(layer *system.Layer) error {
 	}
 
 	imports := make([]string, 0, 2)
-	if layer.Type == consts.HTTPLayerType {
+	switch layer.Type {
+	case consts.HTTPLayerType:
 		imports = append(imports, util.MakeString("github.com/gin-gonic/gin"))
-	} else {
+		break
+	case consts.TelebotLayerType:
+		imports = append(imports, util.MakeString(consts.TelebotURL))
+		break
+	default:
 		imports = append(imports, util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultModelsFolder)))
+		break
 	}
 	err = g.AddImport(imports)
 	if err != nil {
@@ -251,14 +279,26 @@ func (lc *LayerController) generateMainLayerFile(layer *system.Layer) error {
 	// Generate layer general file
 	for j, mdl := range *layer.Models {
 		methods := make([]model.InterfaceMethodInstance, 0, len(mdl.Methods))
-		if layer.Type == consts.HTTPLayerType {
+		switch layer.Type {
+		case consts.HTTPLayerType:
 			for _, method := range (*layer.Models)[j].Methods {
 				methods = append(methods, model.InterfaceMethodInstance{
 					Name: method.String() + mdl.Name,
 					Args: []string{"ctx", "*gin.Context"},
 				})
 			}
-		} else {
+
+			break
+		case consts.TelebotLayerType:
+			for _, method := range (*layer.Models)[j].Methods {
+				methods = append(methods, model.InterfaceMethodInstance{
+					Name: method.String() + mdl.Name,
+					Args: []string{"m", "*telebot.Message"},
+				})
+			}
+
+			break
+		default:
 			for _, method := range (*layer.Models)[j].Methods {
 				methods = append(methods, model.InterfaceMethodInstance{
 					Name:    method.String() + mdl.Name,
@@ -266,6 +306,8 @@ func (lc *LayerController) generateMainLayerFile(layer *system.Layer) error {
 					Returns: method.GetDefaultReturns(mdl),
 				})
 			}
+
+			break
 		}
 
 		err = g.AddInterface((*layer.Models)[j].Name, methods)
@@ -308,16 +350,26 @@ func (lc *LayerController) generateModelLayerFile(layer *system.Layer, mdl *syst
 		})
 	}
 
-	if layer.Type == consts.HTTPLayerType {
+	switch layer.Type {
+	case consts.HTTPLayerType:
 		importsToAdd = append(importsToAdd, util.MakeString(consts.GinURL))
-	}
-
-	if layer.Type == consts.RepoLayerType {
+		break
+	case consts.RepoLayerType:
 		importsToAdd = append(importsToAdd, util.MakeString("gorm.io/gorm"))
 		privateMdl.Fields = append(privateMdl.Fields, system.Field{
 			Name: "db",
 			Type: "*gorm.DB",
 		})
+		break
+	case consts.TelebotLayerType:
+		importsToAdd = append(importsToAdd, util.MakeString(consts.TelebotURL))
+		importsToAdd = append(importsToAdd, util.MakeString("encoding/json"))
+		importsToAdd = append(importsToAdd, util.MakeString("strings"))
+		privateMdl.Fields = append(privateMdl.Fields, system.Field{
+			Name: "bot",
+			Type: "*telebot.Bot",
+		})
+		break
 	}
 
 	err = g.AddImport(importsToAdd)
@@ -352,6 +404,10 @@ func (lc *LayerController) generateModelLayerFile(layer *system.Layer, mdl *syst
 			}
 
 			continue
+		}
+
+		if layer.Type == consts.TelebotLayerType {
+			genMethod.Returns = []string{""}
 		}
 
 		err = g.AddMethod(&privateMdl, &genMethod)
@@ -494,6 +550,11 @@ func (lc *LayerController) generateConfigStorageFile() error {
 		mdlToCreate.Fields = append(mdlToCreate.Fields, postgresFields...)
 	}
 
+	telebotFields := addTelebotConfig(lc.Layers)
+	if len(telebotFields) > 0 {
+		mdlToCreate.Fields = append(mdlToCreate.Fields, telebotFields...)
+	}
+
 	err = g.AddStruct(&mdlToCreate)
 	if err != nil {
 		return fmt.Errorf("unable to add struct %s: %w", mdlToCreate.Name, err)
@@ -564,6 +625,20 @@ func addPostgresConfig(layers []*system.Layer) []system.Field {
 					Name: "PostgresPassword",
 					Type: "string",
 				}}
+		}
+	}
+	return nil
+}
+
+func addTelebotConfig(layers []*system.Layer) []system.Field {
+	for _, layer := range layers {
+		if layer.Type == consts.RepoLayerType {
+			return []system.Field{
+				{
+					Name: "TelebotToken",
+					Type: "string",
+				},
+			}
 		}
 	}
 	return nil

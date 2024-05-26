@@ -93,8 +93,11 @@ func (mt MethodType) GetDefaultReturns(mdl *Model) []string {
 }
 
 func (mt MethodType) GetDefaultArgs(mdl *Model, layer *Layer) []string {
-	if layer.Type == consts.HTTPLayerType {
+	switch layer.Type {
+	case consts.HTTPLayerType:
 		return []string{"ctx", "*gin.Context"}
+	case consts.TelebotLayerType:
+		return []string{"m", "*telebot.Message"}
 	}
 
 	return []string{util.MakePrivateName(mdl.Name + "Model"), " *" + consts.DefaultModelsFolder + "." + mdl.Name}

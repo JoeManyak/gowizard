@@ -129,6 +129,9 @@ func (g *Gen) NewLayerFunc(layer *system.Layer, mdl *system.Model) error {
 	if layer.Type == consts.RepoLayerType {
 		args = fmt.Sprintf("%s, db *gorm.DB", args)
 	}
+	if layer.Type == consts.TelebotLayerType {
+		args = fmt.Sprintf("%s, bot *telebot.Bot", args)
+	}
 
 	_, err := g.File.WriteString(fmt.Sprintf("func New%s%s(%s) %s {\nreturn &%s{\n",
 		mdl.Name, util.MakePublicName(layer.Name), args, mdl.Name, util.MakePrivateName(mdl.Name)))
@@ -149,6 +152,12 @@ func (g *Gen) NewLayerFunc(layer *system.Layer, mdl *system.Model) error {
 	}
 	if layer.Type == consts.RepoLayerType {
 		_, err = g.File.WriteString("db: db,\n")
+		if err != nil {
+			return err
+		}
+	}
+	if layer.Type == consts.TelebotLayerType {
+		_, err = g.File.WriteString("bot: bot,\n")
 		if err != nil {
 			return err
 		}
@@ -389,5 +398,7 @@ func getDefaultConfigValues() map[string]string {
 		"PostgresDb":       "default",
 		"PostgresUser":     "postgres",
 		"PostgresPassword": "postgres",
+
+		"TelebotToken": "put-your-token-here",
 	}
 }

@@ -80,6 +80,8 @@ func SelectMethods(mdl *system.Model, layer *system.Layer) GenerateMethodBody {
 		return gentags.NewHTTP(layer, mdl)
 	case consts.RepoLayerType:
 		return gentags.NewPostgres(layer, mdl)
+	case consts.TelebotLayerType:
+		return gentags.NewTelebot(layer, mdl)
 	default:
 		return gentags.NewCustom(layer, mdl)
 	}
@@ -95,4 +97,5 @@ type GenerateMethodBody interface {
 
 var _ GenerateMethodBody = &gentags.Custom{}
 var _ GenerateMethodBody = &gentags.HTTP{}
+var _ GenerateMethodBody = &gentags.Telebot{}
 var _ GenerateMethodBody = &gentags.Postgres{}
