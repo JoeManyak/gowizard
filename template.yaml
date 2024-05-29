@@ -3,7 +3,7 @@ project_name: wiz
 #path: wiz
 layers:
   - layer: controller
-    tag: telebot
+    tag: http
   - layer: service
   - layer: repository
     tag: postgres

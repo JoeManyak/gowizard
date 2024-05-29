@@ -36,13 +36,13 @@ if err != nil {
 	return
 }
 
-err := %s.%s.%s%s(&req)
+err = %s.%s.%s%s(&req)
 if err != nil {
 	ctx.JSON(500, gin.H{"error": err.Error()})
 	return
 }
 
-ctx.String(200, gin.H{"data": "done"})
+ctx.JSON(200, gin.H{"data": "done"})
 `
 )
 

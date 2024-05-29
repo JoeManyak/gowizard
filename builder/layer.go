@@ -606,7 +606,7 @@ func (lc *LayerController) generateRouterFile(layer *system.Layer, mdls []*syste
 		return err
 	}
 
-	err = g.AddMainTeleRouterFunc(lc.Models)
+	err = g.AddMainRouterFunc(lc.Models)
 	if err != nil {
 		return fmt.Errorf("unable to add main router file")
 	}

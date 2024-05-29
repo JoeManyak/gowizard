@@ -340,7 +340,7 @@ func (g *Gen) AddMainTeleRouterFunc(mdls []*system.Model) error {
 func (g *Gen) AddMainRouterFunc(mdls []*system.Model) error {
 	configFile := util.MakePublicName(consts.DefaultConfigFolder)
 
-	_, err := g.File.WriteString(`func (r *TeleRouter) Run() {
+	_, err := g.File.WriteString(`func (r *Router) Run() {
 g := gin.New()
 
 g.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
