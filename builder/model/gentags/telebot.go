@@ -17,7 +17,7 @@ const (
 	baseTelebotBody = `args := strings.Split(m.Payload, " ")
 if len(args) > 0 {
 	var req %s.%s
-	body := strings.Join(args[1:], " ")
+	body := strings.Join(args, " ")
 	json.Unmarshal([]byte(body), &req)
 	res, err := %s.%s.%s%s(&req)
 if err != nil {
@@ -34,7 +34,7 @@ b, _ := json.Marshal(res)
 	deleteTelebotBody = `args := strings.Split(m.Payload, " ")
 if len(args) > 0 {
 	var req %s.%s
-	body := strings.Join(args[1:], " ")
+	body := strings.Join(args, " ")
 	json.Unmarshal([]byte(body), &req)
 	err := %s.%s.%s%s(&req)
 if err != nil {

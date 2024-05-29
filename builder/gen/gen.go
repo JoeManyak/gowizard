@@ -315,7 +315,7 @@ func (g *Gen) AddMainTeleRouterFunc(mdls []*system.Model) error {
 		}
 
 		for _, method := range mdls[i].Methods {
-			_, err = g.File.WriteString(fmt.Sprintf("r.Bot.Handle(\"/%s/%s\", r.%s.%s)\n",
+			_, err = g.File.WriteString(fmt.Sprintf("r.Bot.Handle(\"/%s%s\", r.%s.%s)\n",
 				strings.ToLower(mdls[i].Name),
 				strings.ToLower(string(method)),
 				mdls[i].Name,
