@@ -87,9 +87,11 @@ func (b *Builder) CodeGenerate() error {
 		return err
 	}
 
-	err = b.swaggerGenerate()
-	if err != nil {
-		return err
+	if b.LayerController.HaveHTTP {
+		err = b.swaggerGenerate()
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -113,7 +115,9 @@ func (b *Builder) initStructure() error {
 
 	b.LayerController = NewLayerController(b, b.Layers, b.Models)
 
+	var lt = make(map[string]struct{}, 10)
 	for i, layer := range b.LayerController.Layers {
+		lt[layer.Type] = struct{}{}
 		path, err := createIfNoExist(filepath.Join(b.Path, layer.Name))
 		if err != nil {
 			return fmt.Errorf("unable to create %s directory: %w", layer.Name, err)
@@ -132,14 +136,24 @@ func (b *Builder) initStructure() error {
 		return fmt.Errorf("unable to create config directory: %w", err)
 	}
 
-	_, err = createIfNoExist(filepath.Join(b.Path, consts.DefaultRouterFolder))
-	if err != nil {
-		return fmt.Errorf("unable to create router directory: %w", err)
+	if _, ok := lt[consts.HTTPLayerType]; ok {
+		b.LayerController.HaveHTTP = true
+		_, err = createIfNoExist(filepath.Join(b.Path, consts.DefaultRouterFolder))
+		if err != nil {
+			return fmt.Errorf("unable to create router directory: %w", err)
+		}
 	}
 
-	_, err = createIfNoExist(filepath.Join(b.Path, consts.DefaultTelerouterFolder))
-	if err != nil {
-		return fmt.Errorf("unable to create telerouter directory: %w", err)
+	if _, ok := lt[consts.TelebotLayerType]; ok {
+		b.LayerController.HaveTelebot = true
+		_, err = createIfNoExist(filepath.Join(b.Path, consts.DefaultTelerouterFolder))
+		if err != nil {
+			return fmt.Errorf("unable to create telerouter directory: %w", err)
+		}
+	}
+
+	if _, ok := lt[consts.RepoLayerType]; ok {
+		b.LayerController.HavePostgres = true
 	}
 
 	return nil

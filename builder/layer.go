@@ -15,6 +15,10 @@ type LayerController struct {
 	Layers  []*system.Layer
 	Builder *Builder
 	Models  []*system.Model
+
+	HaveHTTP     bool
+	HaveTelebot  bool
+	HavePostgres bool
 }
 
 func NewLayerController(
@@ -82,6 +86,13 @@ func (lc *LayerController) Generate() error {
 
 	if l, ok := layerTypes[consts.TelebotLayerType]; ok {
 		err = lc.generateTelegramRouter(l)
+		if err != nil {
+			return err
+		}
+	}
+
+	if lc.HavePostgres {
+		err = lc.generateDefaultPostgresDockerCompose()
 		if err != nil {
 			return err
 		}
@@ -606,6 +617,20 @@ func (lc *LayerController) generateRouterFile(layer *system.Layer, mdls []*syste
 	}
 
 	return nil
+}
+
+func (lc *LayerController) generateDefaultPostgresDockerCompose() error {
+	g, err := gen.NewGen(filepath.Join(lc.Builder.Path, "docker-compose.yaml"))
+	if err != nil {
+		return err
+	}
+
+	_, err = g.File.WriteString(consts.DefaultPostgresDockerfile)
+	if err != nil {
+		return err
+	}
+
+	return g.Close()
 }
 
 func (lc *LayerController) generateConfigStorageFile() error {
