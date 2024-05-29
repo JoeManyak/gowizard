@@ -80,6 +80,13 @@ func (lc *LayerController) Generate() error {
 		}
 	}
 
+	if l, ok := layerTypes[consts.TelebotLayerType]; ok {
+		err = lc.generateTelegramRouter(l)
+		if err != nil {
+			return err
+		}
+	}
+
 	err = lc.generateMainFile()
 	if err != nil {
 		return err
@@ -137,6 +144,7 @@ func (lc *LayerController) generateMainFile() error {
 		importsToAdd = append(importsToAdd,
 			util.MakeString("time"),
 			util.MakeString(consts.TelebotURL),
+			util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultTelerouterFolder)),
 		)
 	}
 	for i := range lc.Layers {
@@ -228,6 +236,25 @@ Poller: &telebot.LongPoller{Timeout: 10*time.Second},
 		args += ", " + consts.DefaultConfigFolder
 
 		_, err = g.File.WriteString(fmt.Sprintf("r := %s.New%s(%s)\n", consts.DefaultRouterFolder, util.MakePublicName(consts.DefaultRouterFolder), args))
+		if err != nil {
+			return err
+		}
+
+		_, err = g.File.WriteString("r.Run()")
+		if err != nil {
+			return err
+		}
+	}
+
+	if telebotLayer != nil {
+		args := lc.Models[0].Name + util.MakePublicName(telebotLayer.Name)
+		for i := range lc.Models[1:] {
+			args += ", " + lc.Models[i+1].Name + util.MakePublicName(telebotLayer.Name)
+		}
+		args += ", " + consts.DefaultConfigFolder
+		args += ", bot"
+
+		_, err = g.File.WriteString(fmt.Sprintf("r := %s.NewTeleRouter(%s)\n", consts.DefaultTelerouterFolder, args))
 		if err != nil {
 			return err
 		}
@@ -445,6 +472,70 @@ func (lc *LayerController) generateModelStorageFile() error {
 	return nil
 }
 
+func (lc *LayerController) generateTelegramRouter(layer *system.Layer) error {
+	g, err := gen.NewGen(filepath.Join(lc.Builder.Path, consts.DefaultTelerouterFolder, consts.DefaultTelerouterFolder+".go"))
+	if err != nil {
+		return fmt.Errorf("unable to create new generator: %w", err)
+	}
+
+	err = g.AddPackage(
+		consts.DefaultTelerouterFolder,
+	)
+	if err != nil {
+		return fmt.Errorf("unable to create add packages")
+	}
+
+	err = g.AddImport([]string{
+		util.MakeString(consts.TelebotURL),
+		util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultConfigFolder)),
+		util.MakeString(filepath.Join(lc.Builder.ProjectName, layer.Name)),
+	})
+	if err != nil {
+		return fmt.Errorf("unable to add imports")
+	}
+
+	routerFields := make([]system.Field, len(*layer.Models))
+	routerFields = append(routerFields, system.Field{
+		Name: "Config",
+		Type: "*" + system.FieldType(consts.DefaultConfigFolder+"."+util.MakePublicName("Config")),
+	})
+	routerFields = append(routerFields, system.Field{
+		Name: "Bot",
+		Type: "*" + system.FieldType("telebot.Bot"),
+	})
+	for i := range *layer.Models {
+		routerFields[i] = system.Field{
+			Name: (*layer.Models)[i].Name,
+			Type: system.FieldType(layer.Name + "." + (*layer.Models)[i].Name),
+		}
+	}
+	routerModel := &system.Model{
+		Name:   "TeleRouter",
+		Fields: routerFields,
+	}
+	err = g.AddStruct(routerModel)
+	if err != nil {
+		return fmt.Errorf("unable to add struct Router")
+	}
+
+	err = g.AddMainTelerouterNewFunc(routerModel)
+	if err != nil {
+		return err
+	}
+
+	err = g.AddMainTeleRouterFunc(lc.Models)
+	if err != nil {
+		return fmt.Errorf("unable to add main router file")
+	}
+
+	err = g.Close()
+	if err != nil {
+		return fmt.Errorf("unable to close router generator")
+	}
+
+	return nil
+}
+
 func (lc *LayerController) generateRouter(httpLayer *system.Layer) error {
 	err := lc.generateRouterFile(httpLayer, lc.Models)
 	if err != nil {
@@ -504,7 +595,7 @@ func (lc *LayerController) generateRouterFile(layer *system.Layer, mdls []*syste
 		return err
 	}
 
-	err = g.AddMainRouterFunc(lc.Models)
+	err = g.AddMainTeleRouterFunc(lc.Models)
 	if err != nil {
 		return fmt.Errorf("unable to add main router file")
 	}

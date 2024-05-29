@@ -137,6 +137,11 @@ func (b *Builder) initStructure() error {
 		return fmt.Errorf("unable to create router directory: %w", err)
 	}
 
+	_, err = createIfNoExist(filepath.Join(b.Path, consts.DefaultTelerouterFolder))
+	if err != nil {
+		return fmt.Errorf("unable to create telerouter directory: %w", err)
+	}
+
 	return nil
 }
 

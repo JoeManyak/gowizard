@@ -254,6 +254,31 @@ func (g *Gen) AddMethod(mdl *system.Model, method *model.MethodInstance) error {
 	return nil
 }
 
+func (g *Gen) AddMainTelerouterNewFunc(mdl *system.Model) error {
+	args := fmt.Sprintf("%s %s", mdl.Fields[0].Name, mdl.Fields[0].Type)
+	for _, f := range mdl.Fields[1:] {
+		args = fmt.Sprintf("%s, %s %s", args, f.Name, f.Type)
+	}
+
+	_, err := g.File.WriteString(fmt.Sprintf("func NewTeleRouter(%s) *TeleRouter {\nreturn &TeleRouter{\n", args))
+	if err != nil {
+		return err
+	}
+
+	for _, f := range mdl.Fields {
+		_, err = g.File.WriteString(fmt.Sprintf("%s: %s,\n", f.Name, f.Name))
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = g.File.WriteString("}\n}\n\n")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (g *Gen) AddMainRouterNewFunc(mdl *system.Model) error {
 	args := fmt.Sprintf("%s %s", mdl.Fields[0].Name, mdl.Fields[0].Type)
 	for _, f := range mdl.Fields[1:] {
@@ -279,10 +304,43 @@ func (g *Gen) AddMainRouterNewFunc(mdl *system.Model) error {
 	return nil
 }
 
+func (g *Gen) AddMainTeleRouterFunc(mdls []*system.Model) error {
+	_, err := g.File.WriteString(`func (r *TeleRouter) Run() {
+`)
+
+	for i := range mdls {
+		_, err = g.File.WriteString(fmt.Sprintf("// Generated router for %s use cases\n", mdls[i].Name))
+		if err != nil {
+			return err
+		}
+
+		for _, method := range mdls[i].Methods {
+			_, err = g.File.WriteString(fmt.Sprintf("r.Bot.Handle(\"/%s/%s\", r.%s.%s)\n",
+				strings.ToLower(mdls[i].Name),
+				strings.ToLower(string(method)),
+				mdls[i].Name,
+				method.GenerateNaming(mdls[i].Name),
+			))
+			if err != nil {
+				return err
+			}
+		}
+
+		_, err = g.File.WriteString("\n")
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = g.File.WriteString(`r.Bot.Start()
+}`)
+	return err
+}
+
 func (g *Gen) AddMainRouterFunc(mdls []*system.Model) error {
 	configFile := util.MakePublicName(consts.DefaultConfigFolder)
 
-	_, err := g.File.WriteString(`func (r *Router) Run() {
+	_, err := g.File.WriteString(`func (r *TeleRouter) Run() {
 g := gin.New()
 
 g.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))

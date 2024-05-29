@@ -1,9 +1,10 @@
 package consts
 
 const (
-	DefaultModelsFolder = "models"
-	DefaultConfigFolder = "config"
-	DefaultRouterFolder = "router"
+	DefaultModelsFolder     = "models"
+	DefaultConfigFolder     = "config"
+	DefaultRouterFolder     = "router"
+	DefaultTelerouterFolder = "telerouter"
 
 	HTTPLayerType    = "http"
 	RepoLayerType    = "postgres"
