@@ -14,11 +14,10 @@ func Run(args []string) {
 		return
 	}
 
-	var response = ""
+	var response string
 	switch strings.ToLower(args[0]) {
 	case g, gen, generate:
 		response = handleCommand(args, commands.NewGenerateCommand)
-		break
 
 	case help:
 		responses.PrintHelp(responses.Help)

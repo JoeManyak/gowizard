@@ -194,9 +194,15 @@ panic(err.Error)
 
 err = db.AutoMigrate(
 `)
+		if err != nil {
+			return err
+		}
 
 		for _, mdl := range lc.Models {
 			_, err = g.File.WriteString(fmt.Sprintf("&%s.%s{},\n", consts.DefaultModelsFolder, mdl.Name))
+			if err != nil {
+				return err
+			}
 		}
 		_, err = g.File.WriteString(`)
 if err != nil {
@@ -204,6 +210,9 @@ panic(err.Error())
 }
 
 `)
+		if err != nil {
+			return err
+		}
 	}
 
 	if telebotLayer != nil {
@@ -212,6 +221,9 @@ Token: %s.TelebotToken,
 Poller: &telebot.LongPoller{Timeout: 10*time.Second},
 })
 `, consts.DefaultConfigFolder))
+		if err != nil {
+			return err
+		}
 	}
 
 	for i := len(lc.Layers) - 1; i >= 0; i-- {
@@ -301,13 +313,10 @@ func (lc *LayerController) generateMainLayerFile(layer *system.Layer) error {
 	switch layer.Type {
 	case consts.HTTPLayerType:
 		imports = append(imports, util.MakeString("github.com/gin-gonic/gin"))
-		break
 	case consts.TelebotLayerType:
 		imports = append(imports, util.MakeString(consts.TelebotURL))
-		break
 	default:
 		imports = append(imports, util.MakeString(filepath.Join(lc.Builder.ProjectName, consts.DefaultModelsFolder)))
-		break
 	}
 	err = g.AddImport(imports)
 	if err != nil {
@@ -326,7 +335,6 @@ func (lc *LayerController) generateMainLayerFile(layer *system.Layer) error {
 				})
 			}
 
-			break
 		case consts.TelebotLayerType:
 			for _, method := range (*layer.Models)[j].Methods {
 				methods = append(methods, model.InterfaceMethodInstance{
@@ -335,7 +343,6 @@ func (lc *LayerController) generateMainLayerFile(layer *system.Layer) error {
 				})
 			}
 
-			break
 		default:
 			for _, method := range (*layer.Models)[j].Methods {
 				methods = append(methods, model.InterfaceMethodInstance{
@@ -345,7 +352,6 @@ func (lc *LayerController) generateMainLayerFile(layer *system.Layer) error {
 				})
 			}
 
-			break
 		}
 
 		err = g.AddInterface((*layer.Models)[j].Name, methods)
@@ -391,14 +397,12 @@ func (lc *LayerController) generateModelLayerFile(layer *system.Layer, mdl *syst
 	switch layer.Type {
 	case consts.HTTPLayerType:
 		importsToAdd = append(importsToAdd, util.MakeString(consts.GinURL))
-		break
 	case consts.RepoLayerType:
 		importsToAdd = append(importsToAdd, util.MakeString("gorm.io/gorm"))
 		privateMdl.Fields = append(privateMdl.Fields, system.Field{
 			Name: "db",
 			Type: "*gorm.DB",
 		})
-		break
 	case consts.TelebotLayerType:
 		importsToAdd = append(importsToAdd, util.MakeString(consts.TelebotURL))
 		importsToAdd = append(importsToAdd, util.MakeString("encoding/json"))
@@ -407,7 +411,6 @@ func (lc *LayerController) generateModelLayerFile(layer *system.Layer, mdl *syst
 			Name: "bot",
 			Type: "*telebot.Bot",
 		})
-		break
 	}
 
 	err = g.AddImport(importsToAdd)

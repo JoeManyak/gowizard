@@ -65,12 +65,10 @@ func (g *Gen) AddInterface(name string, methods []model.InterfaceMethodInstance)
 			if _, err := g.File.WriteString("\n"); err != nil {
 				return err
 			}
-			break
 		case 1:
 			if _, err := g.File.WriteString(" " + methods[i].Returns[0] + "\n"); err != nil {
 				return err
 			}
-			break
 		default:
 			if _, err := g.File.WriteString(" ("); err != nil {
 				return err
@@ -216,12 +214,10 @@ func (g *Gen) AddMethod(mdl *system.Model, method *model.MethodInstance) error {
 		if _, err := g.File.WriteString("{ \n"); err != nil {
 			return err
 		}
-		break
 	case 1:
 		if _, err := g.File.WriteString(" " + method.Returns[0] + "{\n"); err != nil {
 			return err
 		}
-		break
 	default:
 		if _, err := g.File.WriteString(" ("); err != nil {
 			return err
@@ -307,6 +303,9 @@ func (g *Gen) AddMainRouterNewFunc(mdl *system.Model) error {
 func (g *Gen) AddMainTeleRouterFunc(mdls []*system.Model) error {
 	_, err := g.File.WriteString(`func (r *TeleRouter) Run() {
 `)
+	if err != nil {
+		return err
+	}
 
 	for i := range mdls {
 		_, err = g.File.WriteString(fmt.Sprintf("// Generated router for %s use cases\n", mdls[i].Name))
@@ -345,6 +344,9 @@ g := gin.New()
 
 g.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 `)
+	if err != nil {
+		return err
+	}
 
 	for i := range mdls {
 		routerName := fmt.Sprintf("%sRouter", mdls[i].Name)
